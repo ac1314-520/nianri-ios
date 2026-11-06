@@ -425,6 +425,7 @@ struct AnniversaryEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var draft: Anniversary
+    @State private var reminderTime: Date
     @State private var photoItem: PhotosPickerItem?
     @State private var newPhotoData: Data?
     @State private var showValidation = false
@@ -433,7 +434,13 @@ struct AnniversaryEditorView: View {
     private let originalPhoto: String?
 
     init(event: Anniversary?) {
-        _draft = State(initialValue: event ?? Anniversary(title: "", date: Date()))
+        let seeded = event ?? Anniversary(title: "", date: Date())
+        _draft = State(initialValue: seeded)
+        let total = seeded.reminderMinuteOfDay ?? 540
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.hour = total / 60
+        components.minute = total % 60
+        _reminderTime = State(initialValue: Calendar.current.date(from: components) ?? Date())
         isNew = event == nil
         originalPhoto = event?.photo
     }
@@ -511,6 +518,7 @@ struct AnniversaryEditorView: View {
                     Toggle("这一天提醒我", isOn: $draft.reminderEnabled)
                     if draft.reminderEnabled {
                         Stepper("提前 \(draft.reminderDaysBefore) 天", value: $draft.reminderDaysBefore, in: 0...30)
+                        DatePicker("提醒时间", selection: $reminderTime, displayedComponents: .hourAndMinute)
                     }
                 }
 
@@ -571,6 +579,8 @@ struct AnniversaryEditorView: View {
             return
         }
         draft.title = title
+        let time = Calendar.current.dateComponents([.hour, .minute], from: reminderTime)
+        draft.reminderMinuteOfDay = (time.hour ?? 9) * 60 + (time.minute ?? 0)
 
         if let newPhotoData, let name = store.savePhoto(newPhotoData) {
             if let old = originalPhoto, old != name {

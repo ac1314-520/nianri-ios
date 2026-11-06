@@ -28,7 +28,14 @@ struct Anniversary: Identifiable, Codable, Equatable {
     var photo: String? = nil
     var reminderEnabled: Bool = false
     var reminderDaysBefore: Int = 0
+    var reminderMinuteOfDay: Int? = nil
     var manualOrder: Int? = nil
+
+    var reminderHour: Int { (reminderMinuteOfDay ?? 540) / 60 }
+    var reminderMinute: Int { (reminderMinuteOfDay ?? 540) % 60 }
+    var reminderTimeLabel: String {
+        String(format: "%02d:%02d", reminderHour, reminderMinute)
+    }
 
     var targetDate: Date {
         let calendar = AppDate.calendar
@@ -345,8 +352,9 @@ final class NotificationManager {
                 to: event.targetDate
             ) else { continue }
             var components = calendar.dateComponents([.year, .month, .day], from: reminderDate)
-            components.hour = 9
-            components.minute = 0
+            components.hour = event.reminderHour
+            components.minute = event.reminderMinute
+            components.second = 0
             guard let fireDate = calendar.date(from: components), fireDate > Date() else { continue }
 
             let content = UNMutableNotificationContent()

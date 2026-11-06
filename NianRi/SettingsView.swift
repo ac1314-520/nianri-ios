@@ -29,7 +29,7 @@ struct SettingsView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.muted)
                     }
-                    Text("提醒时间统一为当天上午 9:00。iOS 不保证精确到秒，系统会按自己的节奏送达。")
+                    Text("每条纪念日都可以单独设置提醒时间。iOS 不保证精确到秒，系统会按自己的节奏送达。")
                         .font(.system(size: 10.5))
                         .foregroundStyle(Theme.faint)
                 }
