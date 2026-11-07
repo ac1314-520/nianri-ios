@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import Photos
 import UIKit
 import UniformTypeIdentifiers
 
@@ -443,6 +444,8 @@ struct AnniversaryEditorView: View {
     @State private var lunarMode: Bool
     @State private var lunarDate: LunarDate?
     @State private var showLunarPicker = false
+    @State private var liveAsset: PHAsset?
+    @State private var showLivePlayer = false
     @State private var showValidation = false
     @State private var showDelete = false
     private let isNew: Bool
@@ -542,10 +545,26 @@ struct AnniversaryEditorView: View {
                             PhotoView(filename: draft.photo, cornerRadius: 14)
                                 .frame(width: 74, height: 74)
                         }
-                        PhotosPicker(selection: $photoItem, matching: .images) {
+                        PhotosPicker(
+                            selection: $photoItem,
+                            matching: .any(of: [.images, .livePhotos])
+                        ) {
                             Text(draft.photo == nil && newPhotoData == nil ? "从相册选择" : "换一张")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(Theme.cinnabar)
+                        }
+                        if let url = store.liveVideoURL(for: draft.photo) {
+                            Button {
+                                showLivePlayer = true
+                            } label: {
+                                Label("实况", systemImage: "play.fill")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(Theme.cinnabar)
+                            }
+                            .buttonStyle(.plain)
+                            .sheet(isPresented: $showLivePlayer) {
+                                LivePhotoPlayerSheet(url: url)
+                            }
                         }
                         Spacer()
                     }
@@ -632,6 +651,13 @@ struct AnniversaryEditorView: View {
             }
             .onChange(of: photoItem) { _, item in
                 guard let item else { return }
+                liveAsset = nil
+                if let identifier = item.itemIdentifier {
+                    let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
+                    if let asset = result.firstObject, asset.mediaSubtypes.contains(.photoLive) {
+                        liveAsset = asset
+                    }
+                }
                 Task {
                     if let data = try? await item.loadTransferable(type: Data.self) {
                         newPhotoData = data
@@ -669,6 +695,9 @@ struct AnniversaryEditorView: View {
                 store.deletePhoto(old)
             }
             draft.photo = name
+            if let liveAsset {
+                store.saveLiveVideo(asset: liveAsset, photoName: name) { _ in }
+            }
         }
         if let old = draft.music, old != musicName {
             store.deleteAudio(old)

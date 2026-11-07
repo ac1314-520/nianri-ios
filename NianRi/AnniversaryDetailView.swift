@@ -12,6 +12,7 @@ struct AnniversaryDetailView: View {
 
     @State private var showingEditor = false
     @State private var showDelete = false
+    @State private var showLivePlayer = false
     @State private var unitMode: CountUnitMode = .days
 
     private var event: Anniversary? {
@@ -126,6 +127,24 @@ struct AnniversaryDetailView: View {
                         .padding(.vertical, 7)
                         .background(Theme.cream.opacity(0.16))
                         .clipShape(Capsule())
+                    Spacer()
+                    if let url = store.liveVideoURL(for: event.photo) {
+                        Button {
+                            showLivePlayer = true
+                        } label: {
+                            Label("实况", systemImage: "play.fill")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(Theme.cream)
+                                .padding(.horizontal, 11)
+                                .padding(.vertical, 7)
+                                .background(Theme.cream.opacity(0.18))
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .sheet(isPresented: $showLivePlayer) {
+                            LivePhotoPlayerSheet(url: url)
+                        }
+                    }
                     Spacer()
                     Text(event.isToday ? "今天" : event.recurring ? "每年" : "单次")
                         .font(.system(size: 10, weight: .semibold))

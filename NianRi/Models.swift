@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import UIKit
 import ImageIO
+import Photos
 import UniformTypeIdentifiers
 import UserNotifications
 import WidgetKit
@@ -216,6 +217,7 @@ final class NianRiStore: ObservableObject {
     private let dataURL: URL
     private let photosURL: URL
     private let audioURL: URL
+    private let liveVideosURL: URL
     private let imageCache = NSCache<NSString, UIImage>()
 
     init() {
@@ -227,6 +229,8 @@ final class NianRiStore: ObservableObject {
         try? manager.createDirectory(at: photosURL, withIntermediateDirectories: true)
         audioURL = root.appendingPathComponent("Audio", isDirectory: true)
         try? manager.createDirectory(at: audioURL, withIntermediateDirectories: true)
+        liveVideosURL = root.appendingPathComponent("LiveVideos", isDirectory: true)
+        try? manager.createDirectory(at: liveVideosURL, withIntermediateDirectories: true)
         dataURL = root.appendingPathComponent("data.json")
 
         let decoder = JSONDecoder()
@@ -367,6 +371,38 @@ final class NianRiStore: ObservableObject {
         }
     }
 
+    func saveLiveVideo(asset: PHAsset, photoName: String, completion: @escaping (Bool) -> Void) {
+        let resources = PHAssetResource.assetResources(for: asset)
+        guard let resource = resources.first(where: { $0.type == .pairedVideo })
+            ?? resources.first(where: { $0.type == .fullSizeVideo }) else {
+            completion(false)
+            return
+        }
+        let base = (photoName as NSString).deletingPathExtension
+        let destination = liveVideosURL.appendingPathComponent(base + ".mov")
+        try? FileManager.default.removeItem(at: destination)
+        PHAssetResourceManager.default().writeData(
+            for: resource,
+            toFile: destination,
+            options: nil
+        ) { error in
+            DispatchQueue.main.async {
+                completion(error == nil && FileManager.default.fileExists(atPath: destination.path))
+            }
+        }
+    }
+
+    func liveVideoURL(for photo: String?) -> URL? {
+        guard let photo else { return nil }
+        let base = (photo as NSString).deletingPathExtension
+        let url = liveVideosURL.appendingPathComponent(base + ".mov")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func isLivePhoto(_ photo: String?) -> Bool {
+        liveVideoURL(for: photo) != nil
+    }
+
     func photoURL(for name: String?) -> URL? {
         guard let name, !name.isEmpty else { return nil }
         let url = photosURL.appendingPathComponent(name)
@@ -396,6 +432,7 @@ final class NianRiStore: ObservableObject {
         guard let name else { return }
         imageCache.removeObject(forKey: name as NSString)
         try? FileManager.default.removeItem(at: photosURL.appendingPathComponent(name))
+        try? FileManager.default.removeItem(at: liveVideosURL.appendingPathComponent((name as NSString).deletingPathExtension + ".mov"))
     }
 
     func saveAudio(from source: URL, suggestedTitle: String?) -> (name: String, title: String)? {
