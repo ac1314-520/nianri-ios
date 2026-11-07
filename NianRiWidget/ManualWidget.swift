@@ -11,19 +11,13 @@ struct NianRiManualIntent: WidgetConfigurationIntent {
     static var description = IntentDescription("选择标题、日期时间和照片，显示成和 App 内一样的卡片。")
 
     @Parameter(title: "标题", default: "念日")
-    var title: String
+    var title: String?
 
     @Parameter(title: "日期时间", default: Date())
-    var date: Date
+    var date: Date?
 
     @Parameter(title: "照片", supportedTypeIdentifiers: ["public.image"])
     var photo: IntentFile?
-
-    static var parameterSummary: some ParameterSummary {
-        Summary("\(\.$title) · \(\.$date)") {
-            \.$photo
-        }
-    }
 }
 
 struct NianRiManualEntry: TimelineEntry {
@@ -66,8 +60,8 @@ struct NianRiManualProvider: AppIntentTimelineProvider {
 
     private func entry(for configuration: NianRiManualIntent, now: Date = Date()) -> NianRiManualEntry {
         let calendar = Calendar.current
-        let title = configuration.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let target = configuration.date
+        let title = (configuration.title ?? "念日").trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = configuration.date ?? Date()
         let days = calendar.dateComponents(
             [.day],
             from: calendar.startOfDay(for: now),
