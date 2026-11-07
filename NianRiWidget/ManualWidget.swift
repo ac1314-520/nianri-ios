@@ -72,8 +72,37 @@ struct NianRiManualProvider: AppIntentTimelineProvider {
             title: title.isEmpty ? "念日" : title,
             targetDate: target,
             days: days,
-            photoData: configuration.photo?.data
+            photoData: widgetPhotoData(from: configuration.photo)
         )
+    }
+
+    /// IntentFile 在小组件扩展里可能只有 fileURL 可读，而且原图通常太大。
+    /// 这里优先读取文件 URL，再缩到适合 RemoteViews/WidgetKit 的尺寸。
+    private func widgetPhotoData(from file: IntentFile?) -> Data? {
+        guard let file else { return nil }
+        var data = file.data
+        if data.isEmpty, let url = file.fileURL {
+            let access = url.startAccessingSecurityScopedResource()
+            defer {
+                if access { url.stopAccessingSecurityScopedResource() }
+            }
+            if let fromDisk = try? Data(contentsOf: url) {
+                data = fromDisk
+            }
+        }
+        guard !data.isEmpty, let image = UIImage(data: data) else { return nil }
+
+        let longest = max(image.size.width, image.size.height)
+        let scale = min(1, 640 / max(longest, 1))
+        let target = CGSize(
+            width: max(1, image.size.width * scale),
+            height: max(1, image.size.height * scale)
+        )
+        let renderer = UIGraphicsImageRenderer(size: target)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
+        return resized.jpegData(compressionQuality: 0.82)
     }
 }
 
