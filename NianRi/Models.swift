@@ -476,7 +476,7 @@ final class NianRiStore: ObservableObject {
         let name = UUID().uuidString + "." + ext
         let target = audioURL.appendingPathComponent(name)
         do {
-            let data = try Data(contentsOf: source, options: [.mappedIfSafe])
+            let data = try Data(contentsOf: source)
             guard data.count > 0, data.count <= 80 * 1024 * 1024 else { return nil }
             try data.write(to: target, options: [.atomic])
             let rawTitle = suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
