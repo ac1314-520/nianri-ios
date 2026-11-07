@@ -2,24 +2,36 @@ import WidgetKit
 import SwiftUI
 import AppIntents
 import Foundation
+import UIKit
 
 /// 手动倒计时小组件：不依赖 App Group，签名受限时也能显示。
+/// 照片通过 App Intent 的 IntentFile 参数带入，日期时间使用系统配置页的日期选择器。
 struct NianRiManualIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "念日手动倒计时"
-    static var description = IntentDescription("填写标题和日期，桌面每天自动更新倒计时。")
+    static var description = IntentDescription("选择标题、日期时间和照片，显示成和 App 内一样的卡片。")
 
-    @Parameter(title: "标题")
-    var title: String?
+    @Parameter(title: "标题", default: "念日")
+    var title: String
 
-    @Parameter(title: "日期")
-    var date: Date?
+    @Parameter(title: "日期时间", default: Date())
+    var date: Date
+
+    @Parameter(title: "照片", supportedTypeIdentifiers: ["public.image"])
+    var photo: IntentFile?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("\(\.$title) · \(\.$date)") {
+            \.$photo
+        }
+    }
 }
 
 struct NianRiManualEntry: TimelineEntry {
     let date: Date
     let title: String
-    let targetDate: Date?
+    let targetDate: Date
     let days: Int
+    let photoData: Data?
 }
 
 struct NianRiManualProvider: AppIntentTimelineProvider {
@@ -27,12 +39,13 @@ struct NianRiManualProvider: AppIntentTimelineProvider {
     typealias Intent = NianRiManualIntent
 
     func placeholder(in context: Context) -> NianRiManualEntry {
-        let target = Calendar.current.date(byAdding: .day, value: 30, to: Date())
+        let target = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
         return NianRiManualEntry(
             date: Date(),
             title: "值得记住的日子",
             targetDate: target,
-            days: 30
+            days: 30,
+            photoData: nil
         )
     }
 
@@ -53,23 +66,19 @@ struct NianRiManualProvider: AppIntentTimelineProvider {
 
     private func entry(for configuration: NianRiManualIntent, now: Date = Date()) -> NianRiManualEntry {
         let calendar = Calendar.current
-        let title = configuration.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let target = configuration.date.map { calendar.startOfDay(for: $0) }
-        let days: Int
-        if let target {
-            days = calendar.dateComponents(
-                [.day],
-                from: calendar.startOfDay(for: now),
-                to: target
-            ).day ?? 0
-        } else {
-            days = 0
-        }
+        let title = configuration.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = configuration.date
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: now),
+            to: calendar.startOfDay(for: target)
+        ).day ?? 0
         return NianRiManualEntry(
             date: now,
-            title: (title?.isEmpty == false ? title! : "念日"),
+            title: title.isEmpty ? "念日" : title,
             targetDate: target,
-            days: days
+            days: days,
+            photoData: configuration.photo?.data
         )
     }
 }
@@ -83,98 +92,110 @@ struct NianRiManualWidgetView: View {
     private let muted = Color(red: 0.486, green: 0.455, blue: 0.408)
     private let cinnabar = Color(red: 0.69, green: 0.32, blue: 0.22)
 
+    private var photo: UIImage? {
+        entry.photoData.flatMap { UIImage(data: $0) }
+    }
+
+    private var hasPhoto: Bool { photo != nil }
+
     private var status: String {
-        guard entry.targetDate != nil else { return "长按编辑，填写日期" }
         if entry.days > 0 { return "还有 \(entry.days) 天" }
         if entry.days == 0 { return "就是今天" }
         return "已经 \(abs(entry.days)) 天"
     }
 
+    private var countText: String {
+        if entry.days == 0 { return "今天" }
+        return "\(abs(entry.days))"
+    }
+
+    private var countUnit: String {
+        entry.days == 0 ? "" : "天"
+    }
+
     private var dateText: String {
-        guard let target = entry.targetDate else { return "" }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy年M月d日"
-        return formatter.string(from: target)
+        formatter.dateFormat = "yyyy年M月d日 HH:mm"
+        return formatter.string(from: entry.targetDate)
+    }
+
+    private var titleColor: Color { hasPhoto ? Color.white : ink }
+    private var mutedColor: Color { hasPhoto ? Color.white.opacity(0.78) : muted }
+    private var accentColor: Color { hasPhoto ? Color(red: 1, green: 0.85, blue: 0.64) : cinnabar }
+    private var countSize: CGFloat {
+        switch family {
+        case .systemLarge: return 58
+        case .systemMedium: return 44
+        default: return 36
+        }
+    }
+    private var titleSize: CGFloat {
+        switch family {
+        case .systemLarge: return 24
+        case .systemMedium: return 19
+        default: return 15
+        }
+    }
+    private var padding: CGFloat {
+        family == .systemLarge ? 22 : 16
     }
 
     var body: some View {
-        Group {
-            if entry.targetDate == nil {
-                VStack(alignment: .leading, spacing: 6) {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottomLeading) {
+                if let photo {
+                    Image(uiImage: photo)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                    LinearGradient(
+                        colors: [.black.opacity(0.05), .black.opacity(0.22), .black.opacity(0.72)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                } else {
+                    paper
+                }
+
+                VStack(alignment: .leading, spacing: 0) {
                     Text("念日")
                         .font(.system(size: 9, weight: .medium))
-                        .tracking(1)
-                        .foregroundStyle(muted)
-                    Text("手动倒计时")
-                        .font(.system(size: 17, weight: .medium, design: .serif))
-                        .foregroundStyle(ink)
-                    Spacer()
-                    Text("长按小组件\n编辑标题和日期")
-                        .font(.system(size: 10))
-                        .foregroundStyle(cinnabar)
-                        .lineSpacing(3)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            } else if family == .systemMedium {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("念日")
-                            .font(.system(size: 9, weight: .medium))
-                            .tracking(1)
-                            .foregroundStyle(muted)
-                        Text(entry.title)
-                            .font(.system(size: 18, weight: .medium, design: .serif))
-                            .foregroundStyle(ink)
-                            .lineLimit(2)
-                        Spacer()
-                        Text(dateText)
-                            .font(.system(size: 9))
-                            .foregroundStyle(muted)
-                    }
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Spacer()
-                        HStack(alignment: .lastTextBaseline, spacing: 4) {
-                            Text("\(abs(entry.days))")
-                                .font(.system(size: 42, weight: .light, design: .serif))
-                                .foregroundStyle(ink)
-                            Text("天")
-                                .font(.system(size: 10))
-                                .foregroundStyle(muted)
-                        }
-                        Text(status)
-                            .font(.system(size: 10))
-                            .foregroundStyle(cinnabar)
-                    }
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("念日")
-                        .font(.system(size: 9, weight: .medium))
-                        .tracking(1)
-                        .foregroundStyle(muted)
+                        .tracking(1.4)
+                        .foregroundStyle(accentColor)
+
                     Text(entry.title)
-                        .font(.system(size: 14, weight: .medium, design: .serif))
-                        .foregroundStyle(ink)
+                        .font(.system(size: titleSize, weight: .medium, design: .serif))
+                        .foregroundStyle(titleColor)
                         .lineLimit(2)
-                    Spacer()
-                    HStack(alignment: .lastTextBaseline, spacing: 3) {
-                        Text("\(abs(entry.days))")
-                            .font(.system(size: 34, weight: .light, design: .serif))
-                            .foregroundStyle(ink)
-                        Text("天")
-                            .font(.system(size: 9))
-                            .foregroundStyle(muted)
+                        .padding(.top, 7)
+
+                    Spacer(minLength: 4)
+
+                    HStack(alignment: .lastTextBaseline, spacing: 4) {
+                        Text(countText)
+                            .font(.system(size: countSize, weight: .light, design: .serif))
+                            .foregroundStyle(titleColor)
+                        if !countUnit.isEmpty {
+                            Text(countUnit)
+                                .font(.system(size: 10))
+                                .foregroundStyle(mutedColor)
+                        }
                     }
+
                     Text(status)
-                        .font(.system(size: 9))
-                        .foregroundStyle(cinnabar)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(accentColor)
+                        .padding(.top, 1)
+
                     Text(dateText)
-                        .font(.system(size: 8))
-                        .foregroundStyle(muted)
+                        .font(.system(size: 9))
+                        .foregroundStyle(mutedColor)
                         .lineLimit(1)
+                        .padding(.top, 3)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .padding(padding)
             }
         }
         .widgetURL(URL(string: "nianri://home"))
@@ -196,7 +217,7 @@ struct NianRiManualWidget: Widget {
             NianRiManualWidgetView(entry: entry)
         }
         .configurationDisplayName("念日 · 手动倒计时")
-        .description("自己填写标题和日期，每天自动更新，不依赖 App Group。")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .description("选择纪念日、日期时间和照片，做成和 App 内一样的卡片。")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

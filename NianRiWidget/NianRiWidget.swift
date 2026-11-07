@@ -144,7 +144,6 @@ struct NianRiWidget: Widget {
 @main
 struct NianRiWidgetBundle: WidgetBundle {
     var body: some Widget {
-        NianRiWidget()
         NianRiManualWidget()
     }
 }

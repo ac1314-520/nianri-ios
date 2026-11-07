@@ -184,7 +184,7 @@ App 每次保存纪念日会通过 App Group 把“最近一个纪念日”写�
 
 ### 手动版（不需要 App Group）
 
-> 当前 App 和 Widget Extension 的 App Group entitlement 都已移除，方便全能签/免费 Apple ID 签名。自动版小组件因此无法读取 App 数据；请使用手动版。手动版只支持标题和日期，不支持照片；照片封面是 App 内的功能。
+> 当前 App 和 Widget Extension 的 App Group entitlement 都已移除，方便全能签/免费 Apple ID 签名。自动版小组件已从 Widget Bundle 隐藏；请使用手动版。手动版支持标题、日期时间和封面照片，照片通过系统小组件配置页选择。
 ### 手动版（不需要 App Group）
 
 1. 长按桌面空白处 → 左上角 **+**
