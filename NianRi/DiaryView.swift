@@ -1,4 +1,7 @@
 import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
+import UIKit
 
 /// 日记：搜索、筛选、完整阅读、编辑、删除撤销和往年今日。
 /// 文件名保持纯 ASCII，避免 macOS 解压/同步时出现找不到或重名副本。
@@ -9,6 +12,14 @@ struct DiaryView: View {
     @State private var moodKey: String?
     @State private var editingId: UUID?
     @State private var editingDay = AppDate.today
+    @State private var photoItem: PhotosPickerItem?
+    @State private var newPhotoData: Data?
+    @State private var photoName: String?
+    @State private var musicName: String?
+    @State private var musicTitle: String?
+    @State private var showAudioPicker = false
+    @State private var originalPhoto: String?
+    @State private var originalMusic: String?
 
     @State private var allMonths = true
     @State private var monthCursor = AppDate.startOfMonth(Date())
@@ -151,6 +162,28 @@ struct DiaryView: View {
             )
             .environmentObject(store)
         }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    newPhotoData = data
+                }
+            }
+        }
+        .fileImporter(
+            isPresented: $showAudioPicker,
+            allowedContentTypes: [.audio],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            if let saved = store.saveAudio(from: url, suggestedTitle: url.deletingPathExtension().lastPathComponent) {
+                if let old = musicName, old != originalMusic {
+                    store.deleteAudio(old)
+                }
+                musicName = saved.name
+                musicTitle = saved.title
+            }
+        }
         .alert("已删除这篇日记", isPresented: $showUndo) {
             Button("撤销") {
                 undoDelete()
@@ -221,6 +254,51 @@ struct DiaryView: View {
                 }
             }
             .padding(.top, 9)
+
+            HStack(alignment: .top, spacing: 10) {
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    HStack(spacing: 6) {
+                        if let newPhotoData, let image = UIImage(data: newPhotoData) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 38, height: 38)
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        } else if photoName != nil {
+                            PhotoView(filename: photoName, cornerRadius: 9)
+                                .frame(width: 38, height: 38)
+                        } else {
+                            Image(systemName: "photo")
+                                .font(.system(size: 14))
+                        }
+                        Text(photoName == nil && newPhotoData == nil ? "照片" : "换照片")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 10)
+                    .frame(height: 38)
+                    .background(Theme.paper)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Theme.line, lineWidth: 0.7))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 9)
+
+            MusicAttachmentView(
+                name: musicName,
+                title: musicTitle,
+                editable: true,
+                onPick: { showAudioPicker = true },
+                onRemove: {
+                    if let old = musicName, old != originalMusic {
+                        store.deleteAudio(old)
+                    }
+                    musicName = nil
+                    musicTitle = nil
+                }
+            )
+            .padding(.top, 8)
 
             HStack {
                 Text("\(text.count) 字")
@@ -423,7 +501,12 @@ struct DiaryView: View {
     }
 
     private func diaryRow(_ entry: DiaryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .top, spacing: 11) {
+            if entry.photo != nil {
+                PhotoView(filename: entry.photo, cornerRadius: 12)
+                    .frame(width: 44, height: 44)
+            }
+            VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Text(AppDate.dayText(entry.epochDay, format: "M月d日 · EEEE"))
                     .font(.system(size: 9.5, weight: .medium))
@@ -452,6 +535,23 @@ struct DiaryView: View {
                 .foregroundStyle(Theme.inkSoft)
                 .lineSpacing(3)
                 .lineLimit(5)
+            if let music = entry.music, let title = entry.musicTitle {
+                Button {
+                    if let url = store.audioURL(for: music) {
+                        AudioPlayer.shared.toggle(name: music, url: url)
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: AudioPlayer.shared.isPlaying(music) ? "pause.fill" : "play.fill")
+                        Text(title).lineLimit(1)
+                    }
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.cinnabar)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -466,6 +566,13 @@ struct DiaryView: View {
         editingDay = AppDate.today
         text = ""
         moodKey = nil
+        photoName = nil
+        musicName = nil
+        musicTitle = nil
+        newPhotoData = nil
+        photoItem = nil
+        originalPhoto = nil
+        originalMusic = nil
     }
 
     private func loadForEditing(_ entry: DiaryEntry) {
@@ -473,6 +580,13 @@ struct DiaryView: View {
         editingDay = entry.epochDay
         text = entry.text
         moodKey = entry.moodKey
+        photoName = entry.photo
+        musicName = entry.music
+        musicTitle = entry.musicTitle
+        newPhotoData = nil
+        photoItem = nil
+        originalPhoto = entry.photo
+        originalMusic = entry.music
     }
 
     private func saveDiary() {
@@ -483,12 +597,25 @@ struct DiaryView: View {
         }
         let id = editingId ?? UUID()
         let existing = store.data.workbench.diary.first { $0.id == id }
+        var savedPhoto = photoName
+        if let newPhotoData, let name = store.savePhoto(newPhotoData) {
+            if let old = photoName, old != originalPhoto {
+                store.deletePhoto(old)
+            }
+            savedPhoto = name
+            photoName = name
+            newPhotoData = nil
+            photoItem = nil
+        }
         let entry = DiaryEntry(
             id: id,
             epochDay: editingDay,
             text: value,
             moodKey: moodKey,
-            createdAt: existing?.createdAt ?? Date()
+            createdAt: existing?.createdAt ?? Date(),
+            photo: savedPhoto,
+            music: musicName,
+            musicTitle: musicTitle
         )
         store.updateWorkbench { data in
             data.diary.removeAll { $0.id == id }
@@ -503,6 +630,14 @@ struct DiaryView: View {
                 data.moods.removeValue(forKey: String(entry.epochDay))
             }
         }
+        if let old = originalPhoto, old != savedPhoto {
+            store.deletePhoto(old)
+        }
+        if let old = originalMusic, old != musicName {
+            store.deleteAudio(old)
+        }
+        originalPhoto = savedPhoto
+        originalMusic = musicName
         editingId = id
     }
 
@@ -568,11 +703,22 @@ private struct DiaryDetailView: View {
                                 .clipShape(Capsule())
                         }
                     }
+                    if entry.photo != nil {
+                        PhotoView(filename: entry.photo, cornerRadius: 20)
+                            .frame(height: 230)
+                    }
                     Text(entry.text)
                         .font(.system(size: 16, design: .serif))
                         .foregroundStyle(Theme.ink)
                         .lineSpacing(7)
                         .textSelection(.enabled)
+                    if let music = entry.music, let title = entry.musicTitle {
+                        MusicAttachmentView(
+                            name: music,
+                            title: title,
+                            editable: false
+                        )
+                    }
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -64,6 +64,10 @@ struct AnniversaryDetailView: View {
                     noteSection(event.note)
                         .padding(.top, 28)
                 }
+                if let music = event.music, let musicTitle = event.musicTitle {
+                    musicSection(event, title: musicTitle)
+                        .padding(.top, 28)
+                }
                 reminderSection(event)
                     .padding(.top, 28)
                 actions(event)
@@ -181,7 +185,8 @@ struct AnniversaryDetailView: View {
 
     private func startedLine(_ event: Anniversary) -> String {
         let date = AppDate.dateText(event.date, format: "yyyy年M月d日 EEEE")
-        return event.recurring ? "始于 \(date)" : date
+        let lunar = event.lunarDate.map { " · 农历\($0.shortLabel)" } ?? ""
+        return event.recurring ? "始于 \(date)\(lunar)" : date + lunar
     }
 
     private func countCard(_ event: Anniversary) -> some View {
@@ -501,6 +506,27 @@ struct AnniversaryDetailView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(Theme.line, lineWidth: 0.8)
+            )
+            .padding(.top, 12)
+        }
+    }
+
+    private func musicSection(_ event: Anniversary, title: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .lastTextBaseline) {
+                Text("这一天的声音")
+                    .font(.system(size: 19, weight: .regular, design: .serif))
+                    .foregroundStyle(Theme.ink)
+                Spacer()
+                Text("MUSIC")
+                    .font(.system(size: 8, weight: .medium))
+                    .tracking(1.7)
+                    .foregroundStyle(Theme.faint)
+            }
+            MusicAttachmentView(
+                name: event.music,
+                title: title,
+                editable: false
             )
             .padding(.top, 12)
         }

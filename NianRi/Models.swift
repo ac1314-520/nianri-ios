@@ -26,6 +26,13 @@ struct Anniversary: Identifiable, Codable, Equatable {
     var accentIndex: Int = 0
     var note: String = ""
     var photo: String? = nil
+    var music: String? = nil
+    var musicTitle: String? = nil
+    var lunar: Bool? = nil
+    var lunarYear: Int? = nil
+    var lunarMonth: Int? = nil
+    var lunarDay: Int? = nil
+    var lunarLeap: Bool? = nil
     var reminderEnabled: Bool = false
     var reminderDaysBefore: Int = 0
     var reminderMinuteOfDay: Int? = nil
@@ -37,7 +44,25 @@ struct Anniversary: Identifiable, Codable, Equatable {
         String(format: "%02d:%02d", reminderHour, reminderMinute)
     }
 
+    var lunarDate: LunarDate? {
+        guard lunar == true,
+              let lunarYear, let lunarMonth, let lunarDay else { return nil }
+        return LunarDate(
+            year: lunarYear,
+            month: lunarMonth,
+            day: lunarDay,
+            leap: lunarLeap ?? false
+        )
+    }
+
     var targetDate: Date {
+        if let lunarDate {
+            if !recurring {
+                return LunarCalendar.toSolar(lunarDate) ?? AppDate.calendar.startOfDay(for: date)
+            }
+            return LunarCalendar.nextOccurrence(of: lunarDate, after: AppDate.calendar.startOfDay(for: Date()))
+                ?? AppDate.calendar.startOfDay(for: date)
+        }
         let calendar = AppDate.calendar
         if !recurring {
             return calendar.startOfDay(for: date)
@@ -78,11 +103,18 @@ struct Anniversary: Identifiable, Codable, Equatable {
     }
 
     var dateLabel: String {
-        AppDate.dateText(date, format: "yyyy.MM.dd")
+        let solar = AppDate.dateText(date, format: "yyyy.MM.dd")
+        if let lunarDate {
+            return "\(solar) · 农历\(lunarDate.shortLabel)"
+        }
+        return solar
     }
 
     var recurrenceLabel: String {
-        recurring ? "每年今日" : "仅此一次"
+        if recurring {
+            return lunarDate == nil ? "每年今日" : "每年农历"
+        }
+        return "仅此一次"
     }
 }
 
@@ -92,6 +124,9 @@ struct DiaryEntry: Identifiable, Codable, Equatable {
     var text: String
     var moodKey: String? = nil
     var createdAt: Date? = nil
+    var photo: String? = nil
+    var music: String? = nil
+    var musicTitle: String? = nil
 }
 
 struct CheckInPlan: Identifiable, Codable, Equatable {
@@ -178,6 +213,7 @@ final class NianRiStore: ObservableObject {
     @Published private(set) var data: AppData
     private let dataURL: URL
     private let photosURL: URL
+    private let audioURL: URL
     private let imageCache = NSCache<NSString, UIImage>()
 
     init() {
@@ -187,6 +223,8 @@ final class NianRiStore: ObservableObject {
         try? manager.createDirectory(at: root, withIntermediateDirectories: true)
         photosURL = root.appendingPathComponent("Photos", isDirectory: true)
         try? manager.createDirectory(at: photosURL, withIntermediateDirectories: true)
+        audioURL = root.appendingPathComponent("Audio", isDirectory: true)
+        try? manager.createDirectory(at: audioURL, withIntermediateDirectories: true)
         dataURL = root.appendingPathComponent("data.json")
 
         let decoder = JSONDecoder()
@@ -216,9 +254,14 @@ final class NianRiStore: ObservableObject {
             WidgetCenter.shared.reloadAllTimelines()
             return
         }
-        let subtitle = next.recurring
-            ? "每年 \(AppDate.dateText(next.date, format: "M月d日"))"
-            : AppDate.dateText(next.date, format: "yyyy年M月d日")
+        let subtitle: String
+        if let lunar = next.lunarDate {
+            subtitle = next.recurring ? "每年农历\(lunar.shortLabel)" : "农历\(lunar.shortLabel)"
+        } else {
+            subtitle = next.recurring
+                ? "每年 \(AppDate.dateText(next.date, format: "M月d日"))"
+                : AppDate.dateText(next.date, format: "yyyy年M月d日")
+        }
         WidgetSharedStore.save(
             WidgetSnapshot(
                 title: next.title,
@@ -272,6 +315,9 @@ final class NianRiStore: ObservableObject {
         if deletePhoto, let photo = event.photo {
             self.deletePhoto(photo)
         }
+        if let music = event.music {
+            deleteAudio(music)
+        }
         save()
     }
 
@@ -312,6 +358,41 @@ final class NianRiStore: ObservableObject {
         guard let name else { return }
         imageCache.removeObject(forKey: name as NSString)
         try? FileManager.default.removeItem(at: photosURL.appendingPathComponent(name))
+    }
+
+    func saveAudio(from source: URL, suggestedTitle: String?) -> (name: String, title: String)? {
+        let access = source.startAccessingSecurityScopedResource()
+        defer {
+            if access { source.stopAccessingSecurityScopedResource() }
+        }
+        let ext = source.pathExtension.lowercased()
+        let allowed = ["mp3", "m4a", "m4b", "aac", "wav", "ogg", "oga", "opus",
+                       "flac", "amr", "aiff", "aif", "wma", "mid", "midi",
+                       "mp4", "webm", "3gp", "spx", "mka", "mp2", "ac3"]
+        guard allowed.contains(ext) else { return nil }
+        let name = UUID().uuidString + "." + ext
+        let target = audioURL.appendingPathComponent(name)
+        do {
+            let data = try Data(contentsOf: source, options: [.mappedIfSafe])
+            guard data.count > 0, data.count <= 80 * 1024 * 1024 else { return nil }
+            try data.write(to: target, options: [.atomic])
+            let rawTitle = suggestedTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = (rawTitle?.isEmpty == false ? rawTitle! : source.deletingPathExtension().lastPathComponent)
+            return (name, title.isEmpty ? "这一天的声音" : title)
+        } catch {
+            return nil
+        }
+    }
+
+    func audioURL(for name: String?) -> URL? {
+        guard let name, !name.isEmpty else { return nil }
+        let url = audioURL.appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func deleteAudio(_ name: String?) {
+        guard let name else { return }
+        try? FileManager.default.removeItem(at: audioURL.appendingPathComponent(name))
     }
 
     var homeEvents: [Anniversary] {

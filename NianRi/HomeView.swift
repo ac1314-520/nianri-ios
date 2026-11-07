@@ -399,7 +399,11 @@ struct EventRow: View {
                     .font(.system(size: 16, weight: .medium, design: .serif))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
-                Text(event.recurring ? "每年 \(AppDate.dateText(event.date, format: "M月d日"))" : event.dateLabel)
+                Text(event.recurring
+                     ? (event.lunarDate == nil
+                        ? "每年 \(AppDate.dateText(event.date, format: "M月d日"))"
+                        : "每年农历 \(event.lunarDate?.shortLabel ?? "")")
+                     : event.dateLabel)
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.muted)
             }
@@ -433,6 +437,12 @@ struct AnniversaryEditorView: View {
     @State private var reminderTime: Date
     @State private var photoItem: PhotosPickerItem?
     @State private var newPhotoData: Data?
+    @State private var musicName: String?
+    @State private var musicTitle: String?
+    @State private var showAudioPicker = false
+    @State private var lunarMode: Bool
+    @State private var lunarDate: LunarDate?
+    @State private var showLunarPicker = false
     @State private var showValidation = false
     @State private var showDelete = false
     private let isNew: Bool
@@ -459,13 +469,38 @@ struct AnniversaryEditorView: View {
                 }
 
                 Section("日子") {
-                    DatePicker("日期", selection: $draft.date, displayedComponents: .date)
+                    if lunarMode {
+                        Button {
+                            showLunarPicker = true
+                        } label: {
+                            HStack {
+                                Text("农历日期")
+                                Spacer()
+                                Text(lunarDate?.fullLabel ?? "选择农历")
+                                    .foregroundStyle(Theme.cinnabar)
+                            }
+                        }
+                    } else {
+                        DatePicker("日期", selection: $draft.date, displayedComponents: .date)
+                    }
+                    Toggle("按农历纪念", isOn: $lunarMode)
+                        .onChange(of: lunarMode) { _, enabled in
+                            if enabled {
+                                if lunarDate == nil {
+                                    lunarDate = LunarCalendar.fromSolar(draft.date)
+                                }
+                            } else if let lunarDate, let solar = LunarCalendar.toSolar(lunarDate) {
+                                draft.date = solar
+                            }
+                        }
                     Picker("类型", selection: $draft.recurring) {
                         Text("每年纪念").tag(true)
                         Text("单次倒数").tag(false)
                     }
                     .pickerStyle(.segmented)
-                    Text(draft.recurring ? "每年同一天都会再次被点亮。" : "只倒数这一次，也可以记录已经走过的日子。")
+                    Text(draft.recurring
+                         ? (lunarMode ? "每年农历同一天都会再次被点亮。" : "每年同一天都会再次被点亮。")
+                         : "只倒数这一次，也可以记录已经走过的日子。")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.muted)
                 }
@@ -519,6 +554,22 @@ struct AnniversaryEditorView: View {
                         .font(.system(size: 14))
                 }
 
+                Section("声音") {
+                    MusicAttachmentView(
+                        name: musicName,
+                        title: musicTitle,
+                        editable: true,
+                        onPick: { showAudioPicker = true },
+                        onRemove: {
+                            if let old = musicName, old != draft.music {
+                                store.deleteAudio(old)
+                            }
+                            musicName = nil
+                            musicTitle = nil
+                        }
+                    )
+                }
+
                 Section("提醒") {
                     Toggle("这一天提醒我", isOn: $draft.reminderEnabled)
                     if draft.reminderEnabled {
@@ -542,6 +593,28 @@ struct AnniversaryEditorView: View {
             .background(Theme.paper)
             .navigationTitle(isNew ? "写下一个日子" : "编辑这一天")
             .navigationBarTitleDisplayMode(.inline)
+            .fileImporter(
+                isPresented: $showAudioPicker,
+                allowedContentTypes: [.audio],
+                allowsMultipleSelection: false
+            ) { result in
+                guard case .success(let urls) = result, let url = urls.first else { return }
+                if let saved = store.saveAudio(from: url, suggestedTitle: url.deletingPathExtension().lastPathComponent) {
+                    if let old = musicName, old != draft.music {
+                        store.deleteAudio(old)
+                    }
+                    musicName = saved.name
+                    musicTitle = saved.title
+                }
+            }
+            .sheet(isPresented: $showLunarPicker) {
+                if let value = lunarDate {
+                    LunarPickerView(initial: value) { selected, solar in
+                        lunarDate = selected
+                        draft.date = solar
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -592,6 +665,24 @@ struct AnniversaryEditorView: View {
                 store.deletePhoto(old)
             }
             draft.photo = name
+        }
+        if let old = draft.music, old != musicName {
+            store.deleteAudio(old)
+        }
+        draft.music = musicName
+        draft.musicTitle = musicTitle
+        if lunarMode, let lunarDate {
+            draft.lunar = true
+            draft.lunarYear = lunarDate.year
+            draft.lunarMonth = lunarDate.month
+            draft.lunarDay = lunarDate.day
+            draft.lunarLeap = lunarDate.leap
+        } else {
+            draft.lunar = false
+            draft.lunarYear = nil
+            draft.lunarMonth = nil
+            draft.lunarDay = nil
+            draft.lunarLeap = nil
         }
 
         if isNew {
