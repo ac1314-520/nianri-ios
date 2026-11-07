@@ -598,7 +598,7 @@ struct DiaryView: View {
         let id = editingId ?? UUID()
         let existing = store.data.workbench.diary.first { $0.id == id }
         var savedPhoto = photoName
-        if let newPhotoData, let name = store.savePhoto(newPhotoData) {
+        if let data = newPhotoData, let name = store.savePhoto(data) {
             if let old = photoName, old != originalPhoto {
                 store.deletePhoto(old)
             }
