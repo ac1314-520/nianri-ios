@@ -1,6 +1,8 @@
 import Foundation
 import Combine
 import UIKit
+import ImageIO
+import UniformTypeIdentifiers
 import UserNotifications
 import WidgetKit
 
@@ -322,6 +324,30 @@ final class NianRiStore: ObservableObject {
     }
 
     func savePhoto(_ raw: Data) -> String? {
+        // GIF/WebP 动图必须保留原始数据，不能压成静态 JPEG。
+        if let source = CGImageSourceCreateWithData(raw as CFData, nil),
+           CGImageSourceGetCount(source) > 1,
+           let type = CGImageSourceGetType(source) {
+            let uti = UTType(type as String)
+            let ext: String
+            if uti?.conforms(to: .gif) == true {
+                ext = "gif"
+            } else if uti?.conforms(to: .webP) == true {
+                ext = "webp"
+            } else {
+                ext = "gif"
+            }
+            let name = UUID().uuidString + "." + ext
+            do {
+                try raw.write(to: photosURL.appendingPathComponent(name), options: [.atomic])
+                if let first = UIImage(data: raw) {
+                    imageCache.setObject(first, forKey: name as NSString)
+                }
+                return name
+            } catch {
+                return nil
+            }
+        }
         guard let image = UIImage(data: raw) else { return nil }
         let maxSide: CGFloat = 1800
         let scale = min(1, maxSide / max(image.size.width, image.size.height))
@@ -339,6 +365,18 @@ final class NianRiStore: ObservableObject {
         } catch {
             return nil
         }
+    }
+
+    func photoURL(for name: String?) -> URL? {
+        guard let name, !name.isEmpty else { return nil }
+        let url = photosURL.appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func isAnimatedPhoto(_ name: String?) -> Bool {
+        guard let name else { return false }
+        let ext = (name as NSString).pathExtension.lowercased()
+        return ext == "gif" || ext == "webp"
     }
 
     func image(_ name: String?) -> UIImage? {

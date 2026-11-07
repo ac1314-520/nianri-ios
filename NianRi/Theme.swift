@@ -200,7 +200,10 @@ struct PhotoView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            if let image = store.image(filename) {
+            if let filename, store.isAnimatedPhoto(filename), let url = store.photoURL(for: filename) {
+                AnimatedPhotoView(url: url)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+            } else if let image = store.image(filename) {
                 if fitWide && image.size.width > image.size.height * 1.12 {
                     ZStack {
                         Image(uiImage: image)
