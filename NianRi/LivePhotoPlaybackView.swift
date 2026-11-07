@@ -50,7 +50,7 @@ struct LivePhotoPlaybackView: UIViewRepresentable {
                 DispatchQueue.main.async {
                     view.livePhoto = photo
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        view.play()
+                        view.startPlayback(with: .full)
                     }
                 }
             }

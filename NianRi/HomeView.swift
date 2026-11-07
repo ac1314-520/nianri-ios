@@ -536,52 +536,7 @@ struct AnniversaryEditorView: View {
                     .padding(.vertical, 4)
                 }
 
-                Section("照片") {
-                    PhotosPicker(
-                        selection: $photoItem,
-                        matching: .any(of: [.images, .livePhotos])
-                    ) {
-                        HStack(spacing: 14) {
-                            if let data = newPhotoData, let image = UIImage(data: data) {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 74, height: 74)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            } else {
-                                PhotoView(filename: draft.photo, cornerRadius: 14)
-                                    .frame(width: 74, height: 74)
-                            }
-                            Text(draft.photo == nil && newPhotoData == nil ? "从相册选择" : "换一张")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Theme.cinnabar)
-                            Spacer(minLength: 0)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    if liveIdentifier != nil || store.liveVideoURL(for: draft.photo) != nil {
-                        HStack {
-                            Button {
-                                showLivePlayer = true
-                            } label: {
-                                Label("播放实况", systemImage: "play.fill")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Theme.cinnabar)
-                            }
-                            .buttonStyle(.plain)
-                            .sheet(isPresented: $showLivePlayer) {
-                                if let identifier = liveIdentifier {
-                                    LivePhotoNativeSheet(identifier: identifier)
-                                } else if let url = store.liveVideoURL(for: draft.photo) {
-                                    LivePhotoPlayerSheet(url: url)
-                                }
-                            }
-                            Spacer()
-                        }
-                        .padding(.top, 4)
-                    }
-                }
+                photoSection
 
                 Section("故事") {
                     TextEditor(text: $draft.note)
@@ -699,6 +654,56 @@ struct AnniversaryEditorView: View {
                 Text("「\(draft.title)」的照片和记录会一起删除。")
             }
         }
+    }
+
+    @ViewBuilder
+    private var photoSection: some View {
+                Section("照片") {
+                    PhotosPicker(
+                        selection: $photoItem,
+                        matching: .any(of: [.images, .livePhotos])
+                    ) {
+                        HStack(spacing: 14) {
+                            if let data = newPhotoData, let image = UIImage(data: data) {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 74, height: 74)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            } else {
+                                PhotoView(filename: draft.photo, cornerRadius: 14)
+                                    .frame(width: 74, height: 74)
+                            }
+                            Text(draft.photo == nil && newPhotoData == nil ? "从相册选择" : "换一张")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Theme.cinnabar)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if liveIdentifier != nil || store.liveVideoURL(for: draft.photo) != nil {
+                        HStack {
+                            Button {
+                                showLivePlayer = true
+                            } label: {
+                                Label("播放实况", systemImage: "play.fill")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(Theme.cinnabar)
+                            }
+                            .buttonStyle(.plain)
+                            .sheet(isPresented: $showLivePlayer) {
+                                if let identifier = liveIdentifier {
+                                    LivePhotoNativeSheet(identifier: identifier)
+                                } else if let url = store.liveVideoURL(for: draft.photo) {
+                                    LivePhotoPlayerSheet(url: url)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(.top, 4)
+                    }
+                }
     }
 
     private func save() {
