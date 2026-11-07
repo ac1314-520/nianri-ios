@@ -444,10 +444,7 @@ struct AnniversaryEditorView: View {
     @State private var lunarMode: Bool
     @State private var lunarDate: LunarDate?
     @State private var showLunarPicker = false
-    @State private var liveAsset: PHAsset?
     @State private var photoAsset: PHAsset?
-    @State private var liveIdentifier: String?
-    @State private var showLivePlayer = false
     @State private var showValidation = false
     @State private var showDelete = false
     private let isNew: Bool
@@ -465,7 +462,6 @@ struct AnniversaryEditorView: View {
         _musicTitle = State(initialValue: seeded.musicTitle)
         _lunarMode = State(initialValue: seeded.lunar == true)
         _lunarDate = State(initialValue: seeded.lunarDate)
-        _liveIdentifier = State(initialValue: seeded.livePhotoIdentifier)
         isNew = event == nil
         originalPhoto = event?.photo
     }
@@ -616,39 +612,20 @@ struct AnniversaryEditorView: View {
             }
             .onChange(of: photoItem) { _, item in
                 guard let item else { return }
-                liveAsset = nil
                 photoAsset = nil
-                liveIdentifier = nil
                 Task {
-                    if item.supportedContentTypes.contains(where: { $0.identifier.contains("live-photo") }) {
-                        liveIdentifier = item.itemIdentifier
-                    }
                     if let data = try? await item.loadTransferable(type: Data.self) {
                         newPhotoData = data
                     }
-                    let identifier = item.itemIdentifier
-                    var asset = identifier.flatMap {
-                        PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: nil).firstObject
+                    guard item.nianriNeedsOriginalAsset else { return }
+                    _ = await store.requestPhotoLibraryAccess()
+                    if let identifier = item.itemIdentifier {
+                        photoAsset = PHAsset.fetchAssets(
+                            withLocalIdentifiers: [identifier],
+                            options: nil
+                        ).firstObject
                     }
-                    if asset == nil {
-                        _ = await store.requestPhotoLibraryAccess()
-                        if let identifier {
-                            asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
-                        }
-                    }
-                    if let asset {
-                        photoAsset = asset
-                        if asset.mediaSubtypes.contains(.photoLive) {
-                            liveAsset = asset
-                            liveIdentifier = identifier
-                        }
-                    }
-                    if liveAsset != nil || item.nianriNeedsOriginalAsset {
-                        _ = await store.requestPhotoLibraryAccess()
-                    }
-                    if (liveAsset != nil || item.nianriNeedsOriginalAsset),
-                       let asset = photoAsset,
-                       let data = await store.originalImageData(for: asset) {
+                    if let asset = photoAsset, let data = await store.originalImageData(for: asset) {
                         newPhotoData = data
                     }
                 }
@@ -674,7 +651,7 @@ struct AnniversaryEditorView: View {
                 Section("照片") {
                     PhotosPicker(
                         selection: $photoItem,
-                        matching: .any(of: [.images, .livePhotos])
+                        matching: .images
                     ) {
                         HStack(spacing: 14) {
                             if let data = newPhotoData, let image = UIImage(data: data) {
@@ -695,27 +672,6 @@ struct AnniversaryEditorView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    if liveIdentifier != nil || store.liveVideoURL(for: draft.photo) != nil {
-                        HStack {
-                            Button {
-                                showLivePlayer = true
-                            } label: {
-                                Label("播放实况", systemImage: "play.fill")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Theme.cinnabar)
-                            }
-                            .buttonStyle(.plain)
-                            .sheet(isPresented: $showLivePlayer) {
-                                if let identifier = liveIdentifier {
-                                    LivePhotoNativeSheet(identifier: identifier)
-                                } else if let url = store.liveVideoURL(for: draft.photo) {
-                                    LivePhotoPlayerSheet(url: url)
-                                }
-                            }
-                            Spacer()
-                        }
-                        .padding(.top, 4)
-                    }
                 }
     }
 
@@ -734,11 +690,7 @@ struct AnniversaryEditorView: View {
                 store.deletePhoto(old)
             }
             draft.photo = name
-            if let liveAsset {
-                store.saveLiveVideo(asset: liveAsset, photoName: name) { _ in }
-            }
         }
-        draft.livePhotoIdentifier = liveIdentifier
         if let old = draft.music, old != musicName {
             store.deleteAudio(old)
         }

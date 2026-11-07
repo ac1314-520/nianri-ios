@@ -21,10 +21,7 @@ struct DiaryView: View {
     @State private var showAudioPicker = false
     @State private var originalPhoto: String?
     @State private var originalMusic: String?
-    @State private var liveAsset: PHAsset?
     @State private var photoAsset: PHAsset?
-    @State private var liveIdentifier: String?
-    @State private var showLivePlayer = false
 
     @State private var allMonths = true
     @State private var monthCursor = AppDate.startOfMonth(Date())
@@ -169,36 +166,20 @@ struct DiaryView: View {
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
-            liveAsset = nil
             photoAsset = nil
-            liveIdentifier = nil
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self) {
                     newPhotoData = data
                 }
-                let identifier = item.itemIdentifier
-                var asset = identifier.flatMap {
-                    PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: nil).firstObject
+                guard item.nianriNeedsOriginalAsset else { return }
+                _ = await store.requestPhotoLibraryAccess()
+                if let identifier = item.itemIdentifier {
+                    photoAsset = PHAsset.fetchAssets(
+                        withLocalIdentifiers: [identifier],
+                        options: nil
+                    ).firstObject
                 }
-                if asset == nil {
-                    _ = await store.requestPhotoLibraryAccess()
-                    if let identifier {
-                        asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
-                    }
-                }
-                if let asset {
-                    photoAsset = asset
-                    if asset.mediaSubtypes.contains(.photoLive) {
-                        liveAsset = asset
-                        liveIdentifier = identifier
-                    }
-                }
-                if liveAsset != nil || item.nianriNeedsOriginalAsset {
-                    _ = await store.requestPhotoLibraryAccess()
-                }
-                if (liveAsset != nil || item.nianriNeedsOriginalAsset),
-                   let asset = photoAsset,
-                   let data = await store.originalImageData(for: asset) {
+                if let asset = photoAsset, let data = await store.originalImageData(for: asset) {
                     newPhotoData = data
                 }
             }
@@ -287,7 +268,7 @@ struct DiaryView: View {
             .padding(.top, 9)
 
             HStack(alignment: .top, spacing: 10) {
-                PhotosPicker(selection: $photoItem, matching: .any(of: [.images, .livePhotos])) {
+                PhotosPicker(selection: $photoItem, matching: .images) {
                     HStack(spacing: 6) {
                         if let newPhotoData, let image = UIImage(data: newPhotoData) {
                             Image(uiImage: image)
@@ -604,7 +585,6 @@ struct DiaryView: View {
         photoItem = nil
         originalPhoto = nil
         originalMusic = nil
-        liveIdentifier = nil
     }
 
     private func loadForEditing(_ entry: DiaryEntry) {
@@ -619,8 +599,6 @@ struct DiaryView: View {
         photoItem = nil
         originalPhoto = entry.photo
         originalMusic = entry.music
-        liveIdentifier = entry.livePhotoIdentifier
-        liveAsset = nil
     }
 
     private func saveDiary() {
@@ -638,9 +616,6 @@ struct DiaryView: View {
             }
             savedPhoto = name
             photoName = name
-            if let liveAsset {
-                store.saveLiveVideo(asset: liveAsset, photoName: name) { _ in }
-            }
             newPhotoData = nil
             photoItem = nil
         }
@@ -651,7 +626,6 @@ struct DiaryView: View {
             moodKey: moodKey,
             createdAt: existing?.createdAt ?? Date(),
             photo: savedPhoto,
-            livePhotoIdentifier: liveIdentifier,
             music: musicName,
             musicTitle: musicTitle
         )
@@ -716,7 +690,6 @@ private struct DiaryDetailView: View {
     var onDelete: () -> Void
 
     @State private var showDelete = false
-    @State private var showLivePlayer = false
 
     var body: some View {
         NavigationStack {
@@ -743,38 +716,8 @@ private struct DiaryDetailView: View {
                         }
                     }
                     if entry.photo != nil {
-                        ZStack(alignment: .bottomTrailing) {
-                            PhotoView(filename: entry.photo, cornerRadius: 20)
-                                .frame(height: 230)
-                                .onTapGesture {
-                                    if store.liveVideoURL(for: entry.photo) != nil { showLivePlayer = true }
-                                }
-                                .onLongPressGesture(minimumDuration: 0.35) {
-                                    if store.liveVideoURL(for: entry.photo) != nil { showLivePlayer = true }
-                                }
-                            if entry.livePhotoIdentifier != nil || store.liveVideoURL(for: entry.photo) != nil {
-                                Button {
-                                    showLivePlayer = true
-                                } label: {
-                                    Label("实况", systemImage: "play.fill")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(Theme.cream)
-                                        .padding(.horizontal, 11)
-                                        .padding(.vertical, 7)
-                                        .background(.black.opacity(0.52))
-                                        .clipShape(Capsule())
-                                }
-                                .buttonStyle(.plain)
-                                .padding(12)
-                                .sheet(isPresented: $showLivePlayer) {
-                                    if let identifier = entry.livePhotoIdentifier {
-                                        LivePhotoNativeSheet(identifier: identifier)
-                                    } else if let url = store.liveVideoURL(for: entry.photo) {
-                                        LivePhotoPlayerSheet(url: url)
-                                    }
-                                }
-                            }
-                        }
+                        PhotoView(filename: entry.photo, cornerRadius: 20)
+                            .frame(height: 230)
                     }
                     Text(entry.text)
                         .font(.system(size: 16, design: .serif))
