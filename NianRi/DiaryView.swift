@@ -170,16 +170,17 @@ struct DiaryView: View {
             guard let item else { return }
             liveAsset = nil
             photoAsset = nil
-            if let identifier = item.itemIdentifier {
-                let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
-                if let asset = result.firstObject {
-                    photoAsset = asset
-                    if asset.mediaSubtypes.contains(.photoLive) {
-                        liveAsset = asset
+            Task {
+                let access = await store.requestPhotoLibraryAccess()
+                if access, let identifier = item.itemIdentifier {
+                    let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
+                    if let asset = result.firstObject {
+                        photoAsset = asset
+                        if asset.mediaSubtypes.contains(.photoLive) {
+                            liveAsset = asset
+                        }
                     }
                 }
-            }
-            Task {
                 if let asset = photoAsset, let data = await store.originalImageData(for: asset) {
                     newPhotoData = data
                 } else if let data = try? await item.loadTransferable(type: Data.self) {
@@ -187,18 +188,16 @@ struct DiaryView: View {
                 }
             }
         }
-        .fileImporter(
-            isPresented: $showAudioPicker,
-            allowedContentTypes: [.audio],
-            allowsMultipleSelection: false
-        ) { result in
-            guard case .success(let urls) = result, let url = urls.first else { return }
-            if let saved = store.saveAudio(from: url, suggestedTitle: url.deletingPathExtension().lastPathComponent) {
-                if let old = musicName, old != originalMusic {
-                    store.deleteAudio(old)
+        .sheet(isPresented: $showAudioPicker) {
+            AudioDocumentPicker { url in
+                showAudioPicker = false
+                if let saved = store.saveAudio(from: url, suggestedTitle: url.deletingPathExtension().lastPathComponent) {
+                    if let old = musicName, old != originalMusic {
+                        store.deleteAudio(old)
+                    }
+                    musicName = saved.name
+                    musicTitle = saved.title
                 }
-                musicName = saved.name
-                musicTitle = saved.title
             }
         }
         .alert("已删除这篇日记", isPresented: $showUndo) {

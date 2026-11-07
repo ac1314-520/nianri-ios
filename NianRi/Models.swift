@@ -366,6 +366,16 @@ final class NianRiStore: ObservableObject {
         }
     }
 
+    func requestPhotoLibraryAccess() async -> Bool {
+        let current = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        if current == .authorized || current == .limited { return true }
+        return await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+                continuation.resume(returning: status == .authorized || status == .limited)
+            }
+        }
+    }
+
     func originalImageData(for asset: PHAsset) async -> Data? {
         let resources = PHAssetResource.assetResources(for: asset)
         guard let resource = resources.first(where: { $0.type == .fullSizePhoto })
