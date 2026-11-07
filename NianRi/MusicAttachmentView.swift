@@ -78,5 +78,9 @@ struct MusicAttachmentView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(Theme.line, lineWidth: 0.8)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if name == nil && editable { onPick() }
+        }
     }
 }

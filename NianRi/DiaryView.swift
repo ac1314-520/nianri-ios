@@ -22,6 +22,7 @@ struct DiaryView: View {
     @State private var originalPhoto: String?
     @State private var originalMusic: String?
     @State private var liveAsset: PHAsset?
+    @State private var photoAsset: PHAsset?
     @State private var showLivePlayer = false
 
     @State private var allMonths = true
@@ -168,14 +169,18 @@ struct DiaryView: View {
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             liveAsset = nil
+            photoAsset = nil
             if let identifier = item.itemIdentifier {
                 let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
-                if let asset = result.firstObject, asset.mediaSubtypes.contains(.photoLive) {
-                    liveAsset = asset
+                if let asset = result.firstObject {
+                    photoAsset = asset
+                    if asset.mediaSubtypes.contains(.photoLive) {
+                        liveAsset = asset
+                    }
                 }
             }
             Task {
-                if let asset = liveAsset, let data = await store.imageData(for: asset) {
+                if let asset = photoAsset, let data = await store.originalImageData(for: asset) {
                     newPhotoData = data
                 } else if let data = try? await item.loadTransferable(type: Data.self) {
                     newPhotoData = data

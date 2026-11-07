@@ -366,6 +366,27 @@ final class NianRiStore: ObservableObject {
         }
     }
 
+    func originalImageData(for asset: PHAsset) async -> Data? {
+        let resources = PHAssetResource.assetResources(for: asset)
+        guard let resource = resources.first(where: { $0.type == .fullSizePhoto })
+            ?? resources.first(where: { $0.type == .photo }) else {
+            return await imageData(for: asset)
+        }
+        let options = PHAssetResourceRequestOptions()
+        options.isNetworkAccessAllowed = true
+        return await withCheckedContinuation { continuation in
+            var data = Data()
+            PHAssetResourceManager.default().requestData(
+                for: resource,
+                options: options,
+                dataReceivedHandler: { chunk in data.append(chunk) },
+                completionHandler: { error in
+                    continuation.resume(returning: error == nil && !data.isEmpty ? data : nil)
+                }
+            )
+        }
+    }
+
     func imageData(for asset: PHAsset) async -> Data? {
         await withCheckedContinuation { continuation in
             let options = PHImageRequestOptions()
