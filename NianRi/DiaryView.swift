@@ -176,19 +176,29 @@ struct DiaryView: View {
                 if let data = try? await item.loadTransferable(type: Data.self) {
                     newPhotoData = data
                 }
-                guard item.nianriNeedsOriginalAsset else { return }
-                let access = await store.requestPhotoLibraryAccess()
-                if access, let identifier = item.itemIdentifier {
-                    let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
-                    if let asset = result.firstObject {
-                        photoAsset = asset
-                        if asset.mediaSubtypes.contains(.photoLive) {
-                            liveAsset = asset
-                            liveIdentifier = identifier
-                        }
+                let identifier = item.itemIdentifier
+                var asset = identifier.flatMap {
+                    PHAsset.fetchAssets(withLocalIdentifiers: [$0], options: nil).firstObject
+                }
+                if asset == nil {
+                    _ = await store.requestPhotoLibraryAccess()
+                    if let identifier {
+                        asset = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil).firstObject
                     }
                 }
-                if let asset = photoAsset, let data = await store.originalImageData(for: asset) {
+                if let asset {
+                    photoAsset = asset
+                    if asset.mediaSubtypes.contains(.photoLive) {
+                        liveAsset = asset
+                        liveIdentifier = identifier
+                    }
+                }
+                if liveAsset != nil || item.nianriNeedsOriginalAsset {
+                    _ = await store.requestPhotoLibraryAccess()
+                }
+                if (liveAsset != nil || item.nianriNeedsOriginalAsset),
+                   let asset = photoAsset,
+                   let data = await store.originalImageData(for: asset) {
                     newPhotoData = data
                 }
             }
