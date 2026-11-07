@@ -175,7 +175,9 @@ struct DiaryView: View {
                 }
             }
             Task {
-                if let data = try? await item.loadTransferable(type: Data.self) {
+                if let asset = liveAsset, let data = await store.imageData(for: asset) {
+                    newPhotoData = data
+                } else if let data = try? await item.loadTransferable(type: Data.self) {
                     newPhotoData = data
                 }
             }
@@ -722,6 +724,12 @@ private struct DiaryDetailView: View {
                         ZStack(alignment: .bottomTrailing) {
                             PhotoView(filename: entry.photo, cornerRadius: 20)
                                 .frame(height: 230)
+                                .onTapGesture {
+                                    if store.liveVideoURL(for: entry.photo) != nil { showLivePlayer = true }
+                                }
+                                .onLongPressGesture(minimumDuration: 0.35) {
+                                    if store.liveVideoURL(for: entry.photo) != nil { showLivePlayer = true }
+                                }
                             if let url = store.liveVideoURL(for: entry.photo) {
                                 Button {
                                     showLivePlayer = true

@@ -90,6 +90,12 @@ struct AnniversaryDetailView: View {
         ZStack {
             PhotoView(filename: event.photo, cornerRadius: 30)
                 .frame(height: 330)
+                .onTapGesture {
+                    if store.liveVideoURL(for: event.photo) != nil { showLivePlayer = true }
+                }
+                .onLongPressGesture(minimumDuration: 0.35) {
+                    if store.liveVideoURL(for: event.photo) != nil { showLivePlayer = true }
+                }
 
             LinearGradient(
                 colors: [Theme.ink.opacity(0.24), .clear, Theme.ink.opacity(0.72)],
@@ -97,6 +103,7 @@ struct AnniversaryDetailView: View {
                 endPoint: .bottom
             )
             .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .allowsHitTesting(false)
 
             VStack {
                 HStack {

@@ -2,60 +2,66 @@ import Foundation
 import AVFoundation
 import Combine
 
-final class AudioPlayer: ObservableObject {
+final class AudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     static let shared = AudioPlayer()
 
     @Published private(set) var playingName: String?
+    @Published private(set) var lastError: String?
 
-    private var player: AVPlayer?
-    private var endObserver: NSObjectProtocol?
+    private var audio: AVAudioPlayer?
 
-    private init() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
-        try? session.setActive(true)
+    private override init() {
+        super.init()
     }
 
     func isPlaying(_ name: String?) -> Bool {
         guard let name else { return false }
-        return playingName == name && player?.rate != 0
+        return playingName == name && (audio?.isPlaying ?? false)
     }
 
     func toggle(name: String, url: URL) {
-        if playingName == name {
-            player?.pause()
-            player = nil
-            playingName = nil
-            removeObserver()
+        if playingName == name, let audio {
+            if audio.isPlaying {
+                audio.pause()
+                playingName = nil
+            } else {
+                audio.play()
+                playingName = name
+            }
             return
         }
         stop()
-        let item = AVPlayerItem(url: url)
-        let next = AVPlayer(playerItem: item)
-        player = next
-        playingName = name
-        removeObserver()
-        endObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: item,
-            queue: .main
-        ) { [weak self] _ in
-            self?.stop()
+        lastError = nil
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setActive(true)
+            let next = try AVAudioPlayer(contentsOf: url)
+            next.delegate = self
+            next.prepareToPlay()
+            guard next.play() else {
+                lastError = "这段音乐无法播放，请换一个标准 MP3 / M4A 文件"
+                return
+            }
+            audio = next
+            playingName = name
+        } catch {
+            lastError = "这段音乐无法播放，请换一个标准 MP3 / M4A 文件"
+            playingName = nil
+            audio = nil
         }
-        next.play()
     }
 
     func stop() {
-        player?.pause()
-        player = nil
+        audio?.stop()
+        audio = nil
         playingName = nil
-        removeObserver()
     }
 
-    private func removeObserver() {
-        if let endObserver {
-            NotificationCenter.default.removeObserver(endObserver)
-            self.endObserver = nil
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        if audio === player {
+            audio = nil
+            playingName = nil
         }
     }
 }

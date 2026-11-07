@@ -371,6 +371,18 @@ final class NianRiStore: ObservableObject {
         }
     }
 
+    func imageData(for asset: PHAsset) async -> Data? {
+        await withCheckedContinuation { continuation in
+            let options = PHImageRequestOptions()
+            options.isNetworkAccessAllowed = true
+            options.deliveryMode = .highQualityFormat
+            options.version = .current
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+                continuation.resume(returning: data)
+            }
+        }
+    }
+
     func saveLiveVideo(asset: PHAsset, photoName: String, completion: @escaping (Bool) -> Void) {
         let resources = PHAssetResource.assetResources(for: asset)
         guard let resource = resources.first(where: { $0.type == .pairedVideo })

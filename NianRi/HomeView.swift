@@ -544,6 +544,12 @@ struct AnniversaryEditorView: View {
                         } else {
                             PhotoView(filename: draft.photo, cornerRadius: 14)
                                 .frame(width: 74, height: 74)
+                                .onTapGesture {
+                                    if store.liveVideoURL(for: draft.photo) != nil { showLivePlayer = true }
+                                }
+                                .onLongPressGesture(minimumDuration: 0.35) {
+                                    if store.liveVideoURL(for: draft.photo) != nil { showLivePlayer = true }
+                                }
                         }
                         PhotosPicker(
                             selection: $photoItem,
@@ -659,7 +665,9 @@ struct AnniversaryEditorView: View {
                     }
                 }
                 Task {
-                    if let data = try? await item.loadTransferable(type: Data.self) {
+                    if let asset = liveAsset, let data = await store.imageData(for: asset) {
+                        newPhotoData = data
+                    } else if let data = try? await item.loadTransferable(type: Data.self) {
                         newPhotoData = data
                     }
                 }

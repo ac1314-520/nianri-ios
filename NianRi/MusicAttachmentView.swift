@@ -30,10 +30,10 @@ struct MusicAttachmentView: View {
                         .font(.system(size: 13.5, weight: .medium))
                         .foregroundStyle(Theme.ink)
                         .lineLimit(1)
-                    Text(name == nil ? "从文件选择音乐，只保存在本机" : "轻点播放 · 已保存在本机")
+                    Text(player.lastError ?? (name == nil ? "从文件选择音乐，只保存在本机" : "轻点播放 · 已保存在本机"))
                         .font(.system(size: 9.5))
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
+                        .foregroundStyle(player.lastError == nil ? Theme.muted : Theme.cinnabar)
+                        .lineLimit(2)
                 }
                 Spacer(minLength: 6)
 
