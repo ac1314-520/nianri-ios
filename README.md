@@ -58,6 +58,18 @@ Release 里会直接带无签名 IPA。
 - 不要把证书、密码或 `.p12` 上传到仓库
 - 如果想把 iOS 放到现有 Android 仓库的子目录，需要给 workflow 加 `working-directory`；更简单的是单独建一个 `nianri-ios` 仓库
 
+### 没有 Mac / GitHub macOS runner 排队失败：Codemagic
+
+GitHub Actions 的免费 macOS runner 可能长时间拿不到机器。工程已包含 `codemagic.yaml`，可以改用 Codemagic 的云端 Mac：
+
+1. 打开 https://codemagic.io/ ，用 GitHub 登录
+2. **Add application** → 选择 `nianri-ios`
+3. 构建配置选择 **Codemagic YAML**
+4. 选择 workflow **NianRi iOS unsigned IPA**，点 **Start new build**
+5. 构建完成后在 Artifacts 下载 `NianRi-1.2.0-unsigned.ipa`
+
+Codemagic 个人免费计划每月有 500 分钟 macOS 构建额度，不需要本地 Mac；构建产物仍然是无签名 IPA，下载后用全能签签名安装。
+
 ### 直接打 IPA（不安装模拟器）
 
 只想要 `.ipa`、不下载模拟器 Runtime 时，用设备 SDK 构建：

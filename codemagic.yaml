@@ -1,0 +1,48 @@
+workflows:
+  ios-unsigned:
+    name: NianRi iOS unsigned IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      vars:
+        XCODE_PROJECT: "NianRi.xcodeproj"
+        XCODE_SCHEME: "NianRi"
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          set -e
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+          xcodebuild -version
+      - name: Generate Xcode project
+        script: |
+          set -e
+          xcodegen generate
+      - name: Build unsigned device app
+        script: |
+          set -e
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+      - name: Package unsigned IPA
+        script: |
+          set -e
+          APP="build/Build/Products/Release-iphoneos/NianRi.app"
+          test -d "$APP"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" NianRi/Info.plist)
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/NianRi.app
+          rm -f "NianRi-${VERSION}-unsigned.ipa"
+          (cd build && zip -qry "../NianRi-${VERSION}-unsigned.ipa" Payload)
+          ls -lh "NianRi-${VERSION}-unsigned.ipa"
+    artifacts:
+      - NianRi-*-unsigned.ipa
+      - build/Build/Products/Release-iphoneos/NianRi.app
