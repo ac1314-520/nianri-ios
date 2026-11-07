@@ -66,6 +66,16 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Publish failure log
+        if: failure()
+        run: |
+          cp build.log ci-build.log
+          git config user.name "NianRi CI"
+          git config user.email "ci@nianri.local"
+          git add ci-build.log
+          git commit -m "ci: capture iOS build failure" || true
+          git push || true
+
       - name: Package unsigned IPA
         run: |
           APP="build/Build/Products/Release-iphoneos/NianRi.app"
