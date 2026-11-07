@@ -10,13 +10,13 @@ struct NianRiManualIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "念日手动倒计时"
     static var description = IntentDescription("选择标题、日期时间和照片，显示成和 App 内一样的卡片。")
 
-    @Parameter(title: "标题", default: "念日")
+    @Parameter(title: "标题")
     var title: String?
 
-    @Parameter(title: "日期时间", default: Date())
+    @Parameter(title: "日期时间")
     var date: Date?
 
-    @Parameter(title: "照片", supportedTypeIdentifiers: ["public.image"])
+    @Parameter(title: "照片")
     var photo: IntentFile?
 }
 

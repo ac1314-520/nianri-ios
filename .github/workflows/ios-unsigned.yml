@@ -46,6 +46,7 @@ jobs:
 
       - name: Build unsigned device app
         run: |
+          set -o pipefail
           xcodebuild \
             -project NianRi.xcodeproj \
             -scheme NianRi \
@@ -53,7 +54,17 @@ jobs:
             -destination "generic/platform=iOS" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
-            build
+            build 2>&1 | tee build.log
+
+      - name: Show build errors
+        if: failure()
+        run: |
+          {
+            echo "### xcodebuild errors"
+            echo '```'
+            grep -nE "error:|BUILD FAILED|The following build commands failed" build.log | tail -80 || tail -100 build.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package unsigned IPA
         run: |
