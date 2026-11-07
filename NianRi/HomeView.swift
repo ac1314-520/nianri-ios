@@ -9,6 +9,7 @@ struct HomeView: View {
 
     @State private var showingEditor = false
     @State private var editingEvent: Anniversary?
+    @State private var detailEvent: Anniversary?
     @State private var deletedEvent: Anniversary?
     @State private var undoVisible = false
     @State private var undoTask: Task<Void, Never>?
@@ -60,6 +61,12 @@ struct HomeView: View {
             AnniversaryEditorView(event: editingEvent)
                 .environmentObject(store)
         }
+        .fullScreenCover(item: $detailEvent, onDismiss: {
+            syncOrder()
+        }) { event in
+            AnniversaryDetailView(eventID: event.id)
+                .environmentObject(store)
+        }
         .overlay(alignment: .bottom) {
             if undoVisible, let event = deletedEvent {
                 HStack(spacing: 12) {
@@ -93,8 +100,7 @@ struct HomeView: View {
                 deleteWithUndo(hero)
             }) {
                 AnniversaryHero(event: hero) {
-                    editingEvent = hero
-                    showingEditor = true
+                    detailEvent = hero
                 }
                 .background(Theme.cream)
             }
@@ -129,8 +135,7 @@ struct HomeView: View {
                         EventRow(event: event)
                             .background(Theme.cream)
                             .onTapGesture {
-                                editingEvent = event
-                                showingEditor = true
+                                detailEvent = event
                             }
                     }
                     .onDrag {

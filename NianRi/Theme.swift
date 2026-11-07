@@ -3,23 +3,26 @@ import SwiftUI
 import UIKit
 
 enum Theme {
-    static let paper = Color(hex: 0xF6F1E8)
-    static let paperDeep = Color(hex: 0xEFE7DA)
-    static let cream = Color(hex: 0xFFFBF3)
-    static let ink = Color(hex: 0x27231E)
-    static let inkSoft = Color(hex: 0x4E4840)
-    static let muted = Color(hex: 0x7C7468)
-    static let faint = Color(hex: 0xA79E90)
-    static let line = Color(hex: 0xE3D9CA)
-    static let cinnabar = Color(hex: 0xB05238)
-    static let cinnabarDeep = Color(hex: 0x8F3E2B)
-    static let cinnabarSoft = Color(hex: 0xF1DFD5)
+    // Palette follows the Claude DESIGN.md direction: warm cream canvas,
+    // coral voltage, warm ink, hairline borders, almost no shadow.
+    static let paper = Color(hex: 0xFAF9F5)
+    static let paperDeep = Color(hex: 0xF5F0E8)
+    static let cream = Color(hex: 0xFFFDF9)
+    static let ink = Color(hex: 0x141413)
+    static let inkSoft = Color(hex: 0x3D3D3A)
+    static let muted = Color(hex: 0x6C6A64)
+    static let faint = Color(hex: 0x8E8B82)
+    static let line = Color(hex: 0xE6DFD8)
+    static let cinnabar = Color(hex: 0xCC785C)
+    static let cinnabarDeep = Color(hex: 0xA9583E)
+    static let cinnabarSoft = Color(hex: 0xF3E3DB)
+    static let gold = Color(hex: 0xC49A5A)
     static let sage = Color(hex: 0x6F8C70)
     static let rose = Color(hex: 0xA87076)
     static let roseSoft = Color(hex: 0xF3E4E1)
 
     static let accents: [Color] = [
-        Color(hex: 0xB05238), Color(hex: 0x6F8C70), Color(hex: 0x5B7285),
+        Color(hex: 0xCC785C), Color(hex: 0x6F8C70), Color(hex: 0x5B7285),
         Color(hex: 0xB58A5A), Color(hex: 0x8A6B75), Color(hex: 0x505966),
         Color(hex: 0xA07062), Color(hex: 0x5F7C6A), Color(hex: 0x6E6A86),
         Color(hex: 0x8A7B5B), Color(hex: 0x7C6E9E), Color(hex: 0x6F8A8A),
@@ -52,7 +55,7 @@ extension View {
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .stroke(Theme.line, lineWidth: 0.8)
             )
-            .shadow(color: Theme.ink.opacity(0.045), radius: 12, x: 0, y: 5)
+            .shadow(color: Theme.ink.opacity(0.025), radius: 8, x: 0, y: 3)
     }
 
     func nianriScreen() -> some View {
