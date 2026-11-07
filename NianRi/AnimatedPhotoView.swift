@@ -5,16 +5,24 @@ import ImageIO
 struct AnimatedPhotoView: UIViewRepresentable {
     let url: URL
 
+    final class Coordinator {
+        var url: URL?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
     func makeUIView(context: Context) -> UIImageView {
         let view = UIImageView()
         view.contentMode = .scaleAspectFill
         view.clipsToBounds = true
         view.image = Self.animatedImage(url: url)
+        context.coordinator.url = url
         return view
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) {
-        if uiView.image == nil {
+        if context.coordinator.url != url || uiView.image == nil {
+            context.coordinator.url = url
             uiView.image = Self.animatedImage(url: url)
         }
     }

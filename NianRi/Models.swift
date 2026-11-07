@@ -329,18 +329,13 @@ final class NianRiStore: ObservableObject {
 
     func savePhoto(_ raw: Data) -> String? {
         // GIF/WebP 动图必须保留原始数据，不能压成静态 JPEG。
-        if let source = CGImageSourceCreateWithData(raw as CFData, nil),
-           CGImageSourceGetCount(source) > 1,
-           let type = CGImageSourceGetType(source) {
-            let uti = UTType(type as String)
-            let ext: String
-            if uti?.conforms(to: .gif) == true {
-                ext = "gif"
-            } else if uti?.conforms(to: .webP) == true {
-                ext = "webp"
-            } else {
-                ext = "gif"
-            }
+        let isGif = raw.count >= 4
+            && raw[0] == 0x47 && raw[1] == 0x49 && raw[2] == 0x46 && raw[3] == 0x38
+        let isWebP = raw.count >= 12
+            && raw[0] == 0x52 && raw[1] == 0x49 && raw[2] == 0x46 && raw[3] == 0x46
+            && raw[8] == 0x57 && raw[9] == 0x45 && raw[10] == 0x42 && raw[11] == 0x50
+        if isGif || isWebP {
+            let ext = isGif ? "gif" : "webp"
             let name = UUID().uuidString + "." + ext
             do {
                 try raw.write(to: photosURL.appendingPathComponent(name), options: [.atomic])
