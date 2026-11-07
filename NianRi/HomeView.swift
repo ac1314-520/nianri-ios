@@ -456,6 +456,10 @@ struct AnniversaryEditorView: View {
         components.hour = total / 60
         components.minute = total % 60
         _reminderTime = State(initialValue: Calendar.current.date(from: components) ?? Date())
+        _musicName = State(initialValue: seeded.music)
+        _musicTitle = State(initialValue: seeded.musicTitle)
+        _lunarMode = State(initialValue: seeded.lunar == true)
+        _lunarDate = State(initialValue: seeded.lunarDate)
         isNew = event == nil
         originalPhoto = event?.photo
     }
