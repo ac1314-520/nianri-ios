@@ -112,3 +112,14 @@ jobs:
               --title "念日 iOS ${VERSION}" \
               --notes "无签名 IPA。下载后请用全能签签名安装。"
           fi
+
+      - name: Publish CI success status
+        if: success()
+        run: |
+          echo "commit=$GITHUB_SHA result=success" > ci-status.txt
+          git config user.name "NianRi CI"
+          git config user.email "ci@nianri.local"
+          git add ci-status.txt
+          git commit -m "ci: iOS build success" || true
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push || true
