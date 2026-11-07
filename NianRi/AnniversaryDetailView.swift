@@ -91,10 +91,14 @@ struct AnniversaryDetailView: View {
             PhotoView(filename: event.photo, cornerRadius: 30)
                 .frame(height: 330)
                 .onTapGesture {
-                    if store.liveVideoURL(for: event.photo) != nil { showLivePlayer = true }
+                    if event.livePhotoIdentifier != nil || store.liveVideoURL(for: event.photo) != nil {
+                        showLivePlayer = true
+                    }
                 }
                 .onLongPressGesture(minimumDuration: 0.35) {
-                    if store.liveVideoURL(for: event.photo) != nil { showLivePlayer = true }
+                    if event.livePhotoIdentifier != nil || store.liveVideoURL(for: event.photo) != nil {
+                        showLivePlayer = true
+                    }
                 }
 
             LinearGradient(
@@ -135,7 +139,7 @@ struct AnniversaryDetailView: View {
                         .background(Theme.cream.opacity(0.16))
                         .clipShape(Capsule())
                     Spacer()
-                    if let url = store.liveVideoURL(for: event.photo) {
+                    if event.livePhotoIdentifier != nil || store.liveVideoURL(for: event.photo) != nil {
                         Button {
                             showLivePlayer = true
                         } label: {
@@ -149,7 +153,11 @@ struct AnniversaryDetailView: View {
                         }
                         .buttonStyle(.plain)
                         .sheet(isPresented: $showLivePlayer) {
-                            LivePhotoPlayerSheet(url: url)
+                            if let identifier = event.livePhotoIdentifier {
+                                LivePhotoNativeSheet(identifier: identifier)
+                            } else if let url = store.liveVideoURL(for: event.photo) {
+                                LivePhotoPlayerSheet(url: url)
+                            }
                         }
                     }
                     Spacer()

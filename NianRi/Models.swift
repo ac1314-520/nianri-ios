@@ -29,6 +29,7 @@ struct Anniversary: Identifiable, Codable, Equatable {
     var accentIndex: Int = 0
     var note: String = ""
     var photo: String? = nil
+    var livePhotoIdentifier: String? = nil
     var music: String? = nil
     var musicTitle: String? = nil
     var lunar: Bool? = nil
@@ -128,6 +129,7 @@ struct DiaryEntry: Identifiable, Codable, Equatable {
     var moodKey: String? = nil
     var createdAt: Date? = nil
     var photo: String? = nil
+    var livePhotoIdentifier: String? = nil
     var music: String? = nil
     var musicTitle: String? = nil
 }

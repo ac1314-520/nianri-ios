@@ -23,6 +23,7 @@ struct DiaryView: View {
     @State private var originalMusic: String?
     @State private var liveAsset: PHAsset?
     @State private var photoAsset: PHAsset?
+    @State private var liveIdentifier: String?
     @State private var showLivePlayer = false
 
     @State private var allMonths = true
@@ -170,7 +171,12 @@ struct DiaryView: View {
             guard let item else { return }
             liveAsset = nil
             photoAsset = nil
+            liveIdentifier = nil
             Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    newPhotoData = data
+                }
+                guard item.nianriNeedsOriginalAsset else { return }
                 let access = await store.requestPhotoLibraryAccess()
                 if access, let identifier = item.itemIdentifier {
                     let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
@@ -178,12 +184,11 @@ struct DiaryView: View {
                         photoAsset = asset
                         if asset.mediaSubtypes.contains(.photoLive) {
                             liveAsset = asset
+                            liveIdentifier = identifier
                         }
                     }
                 }
                 if let asset = photoAsset, let data = await store.originalImageData(for: asset) {
-                    newPhotoData = data
-                } else if let data = try? await item.loadTransferable(type: Data.self) {
                     newPhotoData = data
                 }
             }
@@ -589,6 +594,7 @@ struct DiaryView: View {
         photoItem = nil
         originalPhoto = nil
         originalMusic = nil
+        liveIdentifier = nil
     }
 
     private func loadForEditing(_ entry: DiaryEntry) {
@@ -603,6 +609,7 @@ struct DiaryView: View {
         photoItem = nil
         originalPhoto = entry.photo
         originalMusic = entry.music
+        liveIdentifier = entry.livePhotoIdentifier
         liveAsset = nil
     }
 
@@ -634,6 +641,7 @@ struct DiaryView: View {
             moodKey: moodKey,
             createdAt: existing?.createdAt ?? Date(),
             photo: savedPhoto,
+            livePhotoIdentifier: liveIdentifier,
             music: musicName,
             musicTitle: musicTitle
         )
@@ -734,7 +742,7 @@ private struct DiaryDetailView: View {
                                 .onLongPressGesture(minimumDuration: 0.35) {
                                     if store.liveVideoURL(for: entry.photo) != nil { showLivePlayer = true }
                                 }
-                            if let url = store.liveVideoURL(for: entry.photo) {
+                            if entry.livePhotoIdentifier != nil || store.liveVideoURL(for: entry.photo) != nil {
                                 Button {
                                     showLivePlayer = true
                                 } label: {
@@ -749,7 +757,11 @@ private struct DiaryDetailView: View {
                                 .buttonStyle(.plain)
                                 .padding(12)
                                 .sheet(isPresented: $showLivePlayer) {
-                                    LivePhotoPlayerSheet(url: url)
+                                    if let identifier = entry.livePhotoIdentifier {
+                                        LivePhotoNativeSheet(identifier: identifier)
+                                    } else if let url = store.liveVideoURL(for: entry.photo) {
+                                        LivePhotoPlayerSheet(url: url)
+                                    }
                                 }
                             }
                         }

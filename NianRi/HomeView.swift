@@ -446,6 +446,7 @@ struct AnniversaryEditorView: View {
     @State private var showLunarPicker = false
     @State private var liveAsset: PHAsset?
     @State private var photoAsset: PHAsset?
+    @State private var liveIdentifier: String?
     @State private var showLivePlayer = false
     @State private var showValidation = false
     @State private var showDelete = false
@@ -464,6 +465,7 @@ struct AnniversaryEditorView: View {
         _musicTitle = State(initialValue: seeded.musicTitle)
         _lunarMode = State(initialValue: seeded.lunar == true)
         _lunarDate = State(initialValue: seeded.lunarDate)
+        _liveIdentifier = State(initialValue: seeded.livePhotoIdentifier)
         isNew = event == nil
         originalPhoto = event?.photo
     }
@@ -535,47 +537,50 @@ struct AnniversaryEditorView: View {
                 }
 
                 Section("照片") {
-                    HStack(spacing: 14) {
-                        if let data = newPhotoData, let image = UIImage(data: data) {
-                            Image(uiImage: image)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 74, height: 74)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        } else {
-                            PhotoView(filename: draft.photo, cornerRadius: 14)
-                                .frame(width: 74, height: 74)
-                                .onTapGesture {
-                                    if store.liveVideoURL(for: draft.photo) != nil { showLivePlayer = true }
-                                }
-                                .onLongPressGesture(minimumDuration: 0.35) {
-                                    if store.liveVideoURL(for: draft.photo) != nil { showLivePlayer = true }
-                                }
-                        }
-                        PhotosPicker(
-                            selection: $photoItem,
-                            matching: .any(of: [.images, .livePhotos])
-                        ) {
+                    PhotosPicker(
+                        selection: $photoItem,
+                        matching: .any(of: [.images, .livePhotos])
+                    ) {
+                        HStack(spacing: 14) {
+                            if let data = newPhotoData, let image = UIImage(data: data) {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 74, height: 74)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            } else {
+                                PhotoView(filename: draft.photo, cornerRadius: 14)
+                                    .frame(width: 74, height: 74)
+                            }
                             Text(draft.photo == nil && newPhotoData == nil ? "从相册选择" : "换一张")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(Theme.cinnabar)
+                            Spacer(minLength: 0)
                         }
-                        if let url = store.liveVideoURL(for: draft.photo) {
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if liveIdentifier != nil || store.liveVideoURL(for: draft.photo) != nil {
+                        HStack {
                             Button {
                                 showLivePlayer = true
                             } label: {
-                                Label("实况", systemImage: "play.fill")
-                                    .font(.system(size: 10, weight: .medium))
+                                Label("播放实况", systemImage: "play.fill")
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(Theme.cinnabar)
                             }
                             .buttonStyle(.plain)
                             .sheet(isPresented: $showLivePlayer) {
-                                LivePhotoPlayerSheet(url: url)
+                                if let identifier = liveIdentifier {
+                                    LivePhotoNativeSheet(identifier: identifier)
+                                } else if let url = store.liveVideoURL(for: draft.photo) {
+                                    LivePhotoPlayerSheet(url: url)
+                                }
                             }
+                            Spacer()
                         }
-                        Spacer()
+                        .padding(.top, 4)
                     }
-                    .padding(.vertical, 4)
                 }
 
                 Section("故事") {
@@ -658,7 +663,12 @@ struct AnniversaryEditorView: View {
                 guard let item else { return }
                 liveAsset = nil
                 photoAsset = nil
+                liveIdentifier = nil
                 Task {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        newPhotoData = data
+                    }
+                    guard item.nianriNeedsOriginalAsset else { return }
                     let access = await store.requestPhotoLibraryAccess()
                     if access, let identifier = item.itemIdentifier {
                         let result = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
@@ -666,12 +676,11 @@ struct AnniversaryEditorView: View {
                             photoAsset = asset
                             if asset.mediaSubtypes.contains(.photoLive) {
                                 liveAsset = asset
+                                liveIdentifier = identifier
                             }
                         }
                     }
                     if let asset = photoAsset, let data = await store.originalImageData(for: asset) {
-                        newPhotoData = data
-                    } else if let data = try? await item.loadTransferable(type: Data.self) {
                         newPhotoData = data
                     }
                 }
@@ -711,6 +720,7 @@ struct AnniversaryEditorView: View {
                 store.saveLiveVideo(asset: liveAsset, photoName: name) { _ in }
             }
         }
+        draft.livePhotoIdentifier = liveIdentifier
         if let old = draft.music, old != musicName {
             store.deleteAudio(old)
         }
