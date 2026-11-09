@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-extension RootTab: Identifiable {
+extension RootTab {
     var id: String { String(describing: self) }
 
     var title: String {
