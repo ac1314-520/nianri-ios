@@ -126,6 +126,9 @@ struct WorkbenchView: View {
                             .font(.system(size: 10.5))
                             .foregroundStyle(Theme.cinnabar)
                             .padding(.top, 2)
+                        Text("中国气象局 CMA 模型")
+                            .font(.system(size: 8.5))
+                            .foregroundStyle(Theme.faint)
                     }
                     Spacer()
                     Button("换城市") {

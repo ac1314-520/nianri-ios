@@ -297,6 +297,16 @@ enum AppDate {
         formatter(format).string(from: date)
     }
 
+    static func relativeDayText(_ epochDay: Int) -> String {
+        let diff = today - epochDay
+        switch diff {
+        case 0: return "今天"
+        case 1: return "昨天"
+        case 2: return "前天"
+        default: return ""
+        }
+    }
+
     static func todayText(_ format: String = "yyyy年M月d日 EEEE") -> String {
         dateText(Date(), format: format)
     }

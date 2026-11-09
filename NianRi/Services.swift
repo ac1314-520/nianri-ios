@@ -81,6 +81,7 @@ enum LedgerCatalog {
         LedgerCategoryInfo(name: "人情", color: Color(hex: 0xB58A5A)),
         LedgerCategoryInfo(name: "住房", color: Color(hex: 0x5E6E7E)),
         LedgerCategoryInfo(name: "通讯", color: Color(hex: 0x6F8A8A)),
+        LedgerCategoryInfo(name: "还贷", color: Color(hex: 0x8A655B)),
         LedgerCategoryInfo(name: "服饰", color: Color(hex: 0x9A6F86)),
         LedgerCategoryInfo(name: "美容", color: Color(hex: 0xB07A7A)),
         LedgerCategoryInfo(name: "宠物", color: Color(hex: 0x8A7B5B)),
@@ -98,6 +99,7 @@ enum LedgerCatalog {
         LedgerCategoryInfo(name: "报销", color: Color(hex: 0x6F8A8A)),
         LedgerCategoryInfo(name: "礼金", color: Color(hex: 0xA07062)),
         LedgerCategoryInfo(name: "退款", color: Color(hex: 0x8A8B5C)),
+        LedgerCategoryInfo(name: "贷款", color: Color(hex: 0x6E7890)),
         LedgerCategoryInfo(name: "分红", color: Color(hex: 0x5F7C6A)),
         LedgerCategoryInfo(name: "其他", color: Color(hex: 0x8E8780)),
     ]
@@ -281,6 +283,7 @@ final class WeatherStore: ObservableObject {
             URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "forecast_days", value: "1"),
+            URLQueryItem(name: "models", value: "cma_grapes_global"),
         ]
         let (data, _) = try await URLSession.shared.data(from: components.url!)
         return try JSONDecoder().decode(ForecastResponse.self, from: data)

@@ -11,6 +11,8 @@ struct LedgerView: View {
     @State private var editorDate = Date()
     @State private var showBudgetEditor = false
     @State private var budgetText = ""
+    @State private var showDaysSheet = false
+    @State private var showLoanSheet = false
 
     private var allEntries: [LedgerEntry] {
         store.data.workbench.ledger.sorted { $0.epochDay > $1.epochDay }
@@ -39,7 +41,7 @@ struct LedgerView: View {
                 Spacer()
                 Button {
                     editingEntry = nil
-                    editorDate = mode == 0 ? month : Date()
+                    editorDate = Date()
                     showEditor = true
                 } label: {
                     Label("记一笔", systemImage: "plus")
@@ -60,9 +62,10 @@ struct LedgerView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Theme.inkSoft)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 40, height: 40)
                         .background(Theme.cream)
                         .clipShape(Circle())
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 Text(mode == 0 ? AppDate.monthLabel(month) : "\(year) 年")
@@ -75,9 +78,10 @@ struct LedgerView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Theme.inkSoft)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 40, height: 40)
                         .background(Theme.cream)
                         .clipShape(Circle())
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 if !isCurrent {
@@ -106,7 +110,7 @@ struct LedgerView: View {
                         .padding(.top, 5)
                     Button("记下第一笔") {
                         editingEntry = nil
-                        editorDate = mode == 0 ? month : Date()
+                        editorDate = Date()
                         showEditor = true
                     }
                     .buttonStyle(PrimaryButtonStyle())
@@ -135,6 +139,12 @@ struct LedgerView: View {
         .sheet(isPresented: $showEditor) {
             LedgerEditorView(entry: editingEntry, initialDate: editorDate)
                 .environmentObject(store)
+        }
+        .sheet(isPresented: $showDaysSheet) {
+            LedgerDaysSheet(month: month, entries: monthEntries)
+        }
+        .sheet(isPresented: $showLoanSheet) {
+            LedgerLoanSheet(entries: allEntries)
         }
     }
 
@@ -220,7 +230,6 @@ struct LedgerView: View {
         let budget = store.data.workbench.monthlyBudgetCents
         let remaining = budget.map { max(0, $0 - expense) }
         let days = Set(monthEntries.map(\.epochDay)).count
-        let debt = store.data.workbench.debtCents ?? 0
         return HStack(spacing: 8) {
             statCard(
                 title: "预算还剩",
@@ -234,12 +243,12 @@ struct LedgerView: View {
                 title: "本月有账",
                 value: "\(days) 天",
                 detail: "点开看每天"
-            ) {}
+            ) { showDaysSheet = true }
             statCard(
                 title: "本月待还",
-                value: money(debt),
-                detail: "本月待还"
-            ) {}
+                value: money(loanOutstanding),
+                detail: "贷款余额"
+            ) { showLoanSheet = true }
         }
         .alert("设置本月预算", isPresented: $showBudgetEditor) {
             TextField("例如 10000", text: $budgetText)
@@ -346,9 +355,10 @@ struct LedgerView: View {
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .foregroundStyle(Theme.ink)
                 Spacer()
-                Text("全部")
+                Button("全部") { showDaysSheet = true }
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Theme.muted)
+                    .buttonStyle(.plain)
             }
             .padding(.top, 24)
 
@@ -365,7 +375,7 @@ struct LedgerView: View {
                     }
                     let dayExpense = dayEntries.filter { !$0.income }.reduce(0) { $0 + $1.amountCents }
                     HStack {
-                        Text(AppDate.dayText(day, format: "M月d日 · EEEE"))
+                        Text(dayHeading(day))
                             .font(.system(size: 10.5, weight: .medium))
                             .foregroundStyle(Theme.muted)
                         Spacer()
@@ -567,8 +577,26 @@ struct LedgerView: View {
         case "医疗": return "cross.case"
         case "学习": return "book"
         case "工资": return "banknote"
+        case "贷款": return "building.columns"
+        case "还贷": return "arrow.uturn.backward.circle"
         default: return "creditcard"
         }
+    }
+
+    private var loanOutstanding: Int {
+        let loans = store.data.workbench.ledger
+            .filter { $0.income && $0.category == "贷款" }
+            .reduce(0) { $0 + $1.amountCents }
+        let repaid = store.data.workbench.ledger
+            .filter { !$0.income && $0.category == "还贷" }
+            .reduce(0) { $0 + $1.amountCents }
+        return max(0, loans - repaid)
+    }
+
+    private func dayHeading(_ day: Int) -> String {
+        let base = AppDate.dayText(day, format: "M月d日 · EEEE")
+        let relative = AppDate.relativeDayText(day)
+        return relative.isEmpty ? base : "\(base) · \(relative)"
     }
 
     private func step(_ value: Int) {
@@ -636,6 +664,24 @@ struct LedgerEditorView: View {
                         .keyboardType(.decimalPad)
                         .font(.system(size: 24, design: .serif))
                     DatePicker("日期", selection: $date, displayedComponents: .date)
+                    HStack(spacing: 8) {
+                        ForEach([0, 1, 2], id: \.self) { offset in
+                            let target = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+                            Button {
+                                date = target
+                            } label: {
+                                Text(offset == 0 ? "今天" : offset == 1 ? "昨天" : "前天")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(Theme.cinnabar)
+                                    .padding(.horizontal, 11)
+                                    .frame(height: 30)
+                                    .background(Theme.cinnabarSoft)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
                 }
 
                 Section("分类") {

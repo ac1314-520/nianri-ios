@@ -88,7 +88,7 @@ struct HomeView: View {
                 .clipShape(Capsule())
                 .shadow(color: Theme.ink.opacity(0.2), radius: 10, y: 4)
                 .padding(.horizontal, 20)
-                .padding(.bottom, 104)
+                .padding(.bottom, 120)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

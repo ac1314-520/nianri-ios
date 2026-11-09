@@ -102,18 +102,18 @@ struct LiquidTabBar: View {
     private func tabLabel(_ tab: RootTab, selected: Bool) -> some View {
         HStack(spacing: 6) {
             Image(systemName: selected ? tab.selectedIcon : tab.icon)
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 18, weight: .medium))
                 .frame(width: 20, height: 20)
             if selected {
                 Text(tab.title)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .fixedSize()
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
         .foregroundStyle(selected ? Theme.ink : Theme.muted)
-        .padding(.horizontal, selected ? 14 : 11)
-        .frame(height: 48)
+        .padding(.horizontal, selected ? 16 : 13)
+        .frame(height: 60)
         .background {
             if selected {
                 Capsule()
