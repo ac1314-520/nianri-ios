@@ -126,7 +126,7 @@ struct WorkbenchView: View {
                             .font(.system(size: 10.5))
                             .foregroundStyle(Theme.cinnabar)
                             .padding(.top, 2)
-                        Text("中国气象局 CMA 模型")
+                        Text("MET Norway · 区县坐标")
                             .font(.system(size: 8.5))
                             .foregroundStyle(Theme.faint)
                     }
@@ -467,7 +467,7 @@ struct CityEditorView: View {
                 }
 
                 Section {
-                    Text("使用 Open-Meteo 公开数据。先搜索区/县，再选择带经纬度的结果；天气会按所选坐标计算，不再只取城市第一个结果。")
+                    Text("使用 Apple 地图搜索区/县，再用 MET Norway 按经纬度取天气。搜索和预报都不需要 API Key。")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.muted)
                 }

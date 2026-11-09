@@ -37,11 +37,13 @@ struct LiquidTabBar: View {
     @Namespace private var namespace
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 0) {
             ForEach(RootTab.allCases) { tab in
                 tabButton(tab)
+                    .frame(maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(6)
         .background {
             Capsule()
@@ -52,7 +54,7 @@ struct LiquidTabBar: View {
                 )
                 .shadow(color: Theme.ink.opacity(0.14), radius: 22, x: 0, y: 10)
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .animation(.spring(response: 0.42, dampingFraction: 0.82), value: selection)
     }
@@ -102,7 +104,7 @@ struct LiquidTabBar: View {
     private func tabLabel(_ tab: RootTab, selected: Bool) -> some View {
         HStack(spacing: 6) {
             Image(systemName: selected ? tab.selectedIcon : tab.icon)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 19, weight: .medium))
                 .frame(width: 20, height: 20)
             if selected {
                 Text(tab.title)
@@ -113,7 +115,7 @@ struct LiquidTabBar: View {
         }
         .foregroundStyle(selected ? Theme.ink : Theme.muted)
         .padding(.horizontal, selected ? 16 : 13)
-        .frame(height: 60)
+        .frame(height: 64)
         .background {
             if selected {
                 Capsule()

@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import MapKit
 
 struct MoodOption: Identifiable, Equatable {
     let key: String
@@ -131,7 +132,7 @@ struct WeatherSnapshot: Codable, Equatable {
     var longitude: Double? = nil
 }
 
-struct WeatherPlace: Decodable, Identifiable, Equatable {
+struct WeatherPlace: Identifiable, Equatable {
     let name: String
     let admin1: String?
     let admin2: String?
@@ -180,12 +181,36 @@ final class WeatherStore: ObservableObject {
         error = nil
         defer { searching = false }
         do {
-            searchResults = try await geocode(clean, count: 10)
-            if searchResults.isEmpty {
-                error = "没有找到这个地点，试试「区名 + 城市」。"
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = clean
+            request.region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 35.0, longitude: 104.0),
+                span: MKCoordinateSpan(latitudeDelta: 50, longitudeDelta: 50)
+            )
+            let response = try await MKLocalSearch(request: request).start()
+            var seen = Set<String>()
+            let places: [WeatherPlace] = response.mapItems.compactMap { item in
+                let mark = item.placemark
+                if let country = mark.countryCode, !country.isEmpty, country != "CN" {
+                    return nil
+                }
+                let name = item.name ?? mark.name ?? clean
+                let keyText = "\(name)|\(mark.locality ?? "")|\(mark.latitude)|\(mark.longitude)"
+                guard seen.insert(keyText).inserted else { return nil }
+                return WeatherPlace(
+                    name: name,
+                    admin1: mark.administrativeArea,
+                    admin2: mark.subLocality ?? mark.locality,
+                    latitude: mark.coordinate.latitude,
+                    longitude: mark.coordinate.longitude
+                )
+            }
+            searchResults = places
+            if places.isEmpty {
+                error = "Apple 地图没有找到这个地点，试试「区名 + 城市」。"
             }
         } catch {
-            self.error = "地点搜索失败，检查网络后再试。"
+            self.error = "地点搜索失败：\(error.localizedDescription)"
         }
     }
 
@@ -196,15 +221,28 @@ final class WeatherStore: ObservableObject {
         loading = true
         error = nil
         do {
-            let places = try await geocode(clean, count: 10)
-            guard let place = places.first else {
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = clean
+            request.region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 35.0, longitude: 104.0),
+                span: MKCoordinateSpan(latitudeDelta: 50, longitudeDelta: 50)
+            )
+            let response = try await MKLocalSearch(request: request).start()
+            guard let item = response.mapItems.first else {
                 error = "没有找到这个城市，换个写法试试。"
                 loading = false
                 return
             }
-            await configure(place: place)
+            let mark = item.placemark
+            await configure(place: WeatherPlace(
+                name: item.name ?? mark.name ?? clean,
+                admin1: mark.administrativeArea,
+                admin2: mark.subLocality ?? mark.locality,
+                latitude: mark.coordinate.latitude,
+                longitude: mark.coordinate.longitude
+            ))
         } catch {
-            self.error = "天气暂时不可用，检查网络后再试。"
+            self.error = "地点搜索失败：\(error.localizedDescription)"
             loading = false
         }
     }
@@ -214,23 +252,26 @@ final class WeatherStore: ObservableObject {
         loading = true
         error = nil
         do {
-            let forecast = try await forecast(latitude: place.latitude, longitude: place.longitude)
-            guard let current = forecast.current,
-                  let daily = forecast.daily,
-                  let temp = current.temperature_2m,
-                  let code = current.weather_code,
-                  let maxValue = daily.temperature_2m_max?.first,
-                  let minValue = daily.temperature_2m_min?.first else {
-                error = "暂时没有拿到天气数据。"
+            let forecast = try await metForecast(latitude: place.latitude, longitude: place.longitude)
+            let series = forecast.properties.timeseries
+            guard let first = series.first,
+                  let temp = first.data.instant.details.air_temperature else {
+                error = "暂时没有拿到 MET Norway 天气数据。"
                 loading = false
                 return
             }
+            let window = Array(series.prefix(24))
+            let temps = window.compactMap { $0.data.instant.details.air_temperature }
+            let symbol = first.data.next_1_hours?.summary?.symbol_code
+                ?? first.data.next_6_hours?.summary?.symbol_code
+                ?? "cloudy"
+            let code = metCode(symbol)
             let value = WeatherSnapshot(
                 city: place.displayName,
                 temperature: temp,
                 code: code,
-                max: maxValue,
-                min: minValue,
+                max: temps.max() ?? temp,
+                min: temps.min() ?? temp,
                 updatedAt: Date(),
                 latitude: place.latitude,
                 longitude: place.longitude
@@ -241,7 +282,7 @@ final class WeatherStore: ObservableObject {
             }
             loading = false
         } catch {
-            self.error = "天气暂时不可用，检查网络后再试。"
+            self.error = "MET Norway 天气请求失败：\(error.localizedDescription)"
             loading = false
         }
     }
@@ -261,52 +302,74 @@ final class WeatherStore: ObservableObject {
         }
     }
 
-    private func geocode(_ city: String, count: Int) async throws -> [WeatherPlace] {
-        var components = URLComponents(string: "https://geocoding-api.open-meteo.com/v1/search")!
+    private func metForecast(latitude: Double, longitude: Double) async throws -> MetForecast {
+        var components = URLComponents(string: "https://api.met.no/weatherapi/locationforecast/2.0/compact")!
         components.queryItems = [
-            URLQueryItem(name: "name", value: city),
-            URLQueryItem(name: "count", value: String(count)),
-            URLQueryItem(name: "language", value: "zh"),
-            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "lat", value: String(latitude)),
+            URLQueryItem(name: "lon", value: String(longitude)),
         ]
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
-        let decoded = try JSONDecoder().decode(GeoResponse.self, from: data)
-        return decoded.results ?? []
+        var request = URLRequest(url: components.url!)
+        request.setValue(
+            "NianRi/1.0 (https://github.com/ac1314-520/nianri-ios)",
+            forHTTPHeaderField: "User-Agent"
+        )
+        request.timeoutInterval = 20
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try JSONDecoder().decode(MetForecast.self, from: data)
     }
 
-    private func forecast(latitude: Double, longitude: Double) async throws -> ForecastResponse {
-        var components = URLComponents(string: "https://api.open-meteo.com/v1/forecast")!
-        components.queryItems = [
-            URLQueryItem(name: "latitude", value: String(latitude)),
-            URLQueryItem(name: "longitude", value: String(longitude)),
-            URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
-            URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
-            URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "forecast_days", value: "1"),
-            URLQueryItem(name: "models", value: "cma_grapes_global"),
-        ]
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
-        return try JSONDecoder().decode(ForecastResponse.self, from: data)
+    private func metCode(_ symbol: String) -> Int {
+        let value = symbol.lowercased()
+        if value.contains("thunder") { return 95 }
+        if value.contains("heavysnow") { return 75 }
+        if value.contains("snow") { return 73 }
+        if value.contains("lightsnow") { return 71 }
+        if value.contains("heavyrain") { return 65 }
+        if value.contains("sleet") { return 66 }
+        if value.contains("rain") { return 61 }
+        if value.contains("drizzle") { return 51 }
+        if value.contains("fog") { return 45 }
+        if value.contains("partlycloudy") { return 2 }
+        if value.contains("fair") { return 1 }
+        if value.contains("cloudy") { return 3 }
+        if value.contains("clear") { return 0 }
+        return 3
     }
 }
 
-private struct GeoResponse: Decodable {
-    let results: [WeatherPlace]?
+private struct MetForecast: Decodable {
+    let properties: MetProperties
 }
 
-private struct ForecastResponse: Decodable {
-    let current: Current?
-    let daily: Daily?
+private struct MetProperties: Decodable {
+    let timeseries: [MetTime]
 }
 
-private struct Current: Decodable {
-    let temperature_2m: Double?
-    let weather_code: Int?
+private struct MetTime: Decodable {
+    let time: String
+    let data: MetData
 }
 
-private struct Daily: Decodable {
-    let temperature_2m_max: [Double]?
-    let temperature_2m_min: [Double]?
+private struct MetData: Decodable {
+    let instant: MetInstant
+    let next_1_hours: MetNext?
+    let next_6_hours: MetNext?
+}
+
+private struct MetInstant: Decodable {
+    let details: MetDetails
+}
+
+private struct MetDetails: Decodable {
+    let air_temperature: Double?
+}
+
+private struct MetNext: Decodable {
+    let summary: MetSummary?
+}
+
+private struct MetSummary: Decodable {
+    let symbol_code: String?
 }
 
 extension WeatherSnapshot {

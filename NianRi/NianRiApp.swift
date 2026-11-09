@@ -41,7 +41,7 @@ struct RootView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 100)
+                Color.clear.frame(height: 108)
             }
 
             LiquidTabBar(selection: $selectedTab)
