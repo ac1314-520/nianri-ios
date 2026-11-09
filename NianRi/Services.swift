@@ -183,7 +183,7 @@ final class WeatherStore: ObservableObject {
                 error = "没有找到这个地点，试试「区名 + 城市」。"
             }
         } catch {
-            error = "地点搜索失败，检查网络后再试。"
+            self.error = "地点搜索失败，检查网络后再试。"
         }
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum RootTab: Hashable {
+enum RootTab: Hashable, CaseIterable, Identifiable {
     case home, workbench, records, settings
 }
 

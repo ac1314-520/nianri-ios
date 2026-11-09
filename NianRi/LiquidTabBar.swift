@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-extension RootTab: CaseIterable, Identifiable {
+extension RootTab: Identifiable {
     var id: String { String(describing: self) }
 
     var title: String {
@@ -39,55 +39,7 @@ struct LiquidTabBar: View {
     var body: some View {
         HStack(spacing: 3) {
             ForEach(RootTab.allCases) { tab in
-                let selected = selection == tab
-                Button {
-                    guard selection != tab else { return }
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-                        selection = tab
-                    }
-                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: selected ? tab.selectedIcon : tab.icon)
-                            .font(.system(size: 16, weight: .medium))
-                            .frame(width: 20, height: 20)
-                        if selected {
-                            Text(tab.title)
-                                .font(.system(size: 11.5, weight: .semibold))
-                                .fixedSize()
-                                .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                        }
-                    }
-                    .foregroundStyle(selected ? Theme.ink : Theme.muted)
-                    .padding(.horizontal, selected ? 14 : 11)
-                    .frame(height: 48)
-                    .background {
-                        if selected {
-                            Capsule()
-                                .fill(.ultraThinMaterial)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(
-                                            LinearGradient(
-                                                colors: [
-                                                    Color.white.opacity(0.95),
-                                                    Color.white.opacity(0.28),
-                                                    Theme.cinnabar.opacity(0.22)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 0.9
-                                        )
-                                )
-                                .shadow(color: Theme.ink.opacity(0.12), radius: 12, x: 0, y: 5)
-                                .matchedGeometryEffect(id: "liquid-tab-selection", in: namespace)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(selected ? .isSelected : [])
+                tabButton(tab)
             }
         }
         .padding(6)
@@ -96,23 +48,80 @@ struct LiquidTabBar: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     Capsule()
-                        .stroke(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.75),
-                                    Color.white.opacity(0.16),
-                                    Theme.line.opacity(0.5)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.8
-                        )
+                        .stroke(barBorder, lineWidth: 0.8)
                 )
                 .shadow(color: Theme.ink.opacity(0.14), radius: 22, x: 0, y: 10)
         }
         .padding(.horizontal, 18)
         .padding(.bottom, 8)
         .animation(.spring(response: 0.42, dampingFraction: 0.82), value: selection)
+    }
+
+    private var barBorder: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.75),
+                Color.white.opacity(0.16),
+                Theme.line.opacity(0.5)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var selectedBorder: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.95),
+                Color.white.opacity(0.28),
+                Theme.cinnabar.opacity(0.22)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    @ViewBuilder
+    private func tabButton(_ tab: RootTab) -> some View {
+        let selected = selection == tab
+        Button {
+            guard selection != tab else { return }
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                selection = tab
+            }
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        } label: {
+            tabLabel(tab, selected: selected)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private func tabLabel(_ tab: RootTab, selected: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: selected ? tab.selectedIcon : tab.icon)
+                .font(.system(size: 16, weight: .medium))
+                .frame(width: 20, height: 20)
+            if selected {
+                Text(tab.title)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .fixedSize()
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
+        }
+        .foregroundStyle(selected ? Theme.ink : Theme.muted)
+        .padding(.horizontal, selected ? 14 : 11)
+        .frame(height: 48)
+        .background {
+            if selected {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Capsule().stroke(selectedBorder, lineWidth: 0.9))
+                    .shadow(color: Theme.ink.opacity(0.12), radius: 12, x: 0, y: 5)
+                    .matchedGeometryEffect(id: "liquid-tab-selection", in: namespace)
+            }
+        }
     }
 }
