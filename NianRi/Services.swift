@@ -195,7 +195,7 @@ final class WeatherStore: ObservableObject {
                     return nil
                 }
                 let name = item.name ?? mark.name ?? clean
-                let keyText = "\(name)|\(mark.locality ?? "")|\(mark.latitude)|\(mark.longitude)"
+                let keyText = "\(name)|\(mark.locality ?? "")|\(mark.coordinate.latitude)|\(mark.coordinate.longitude)"
                 guard seen.insert(keyText).inserted else { return nil }
                 return WeatherPlace(
                     name: name,
