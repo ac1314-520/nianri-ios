@@ -9,6 +9,8 @@ struct LedgerView: View {
     @State private var showEditor = false
     @State private var editingEntry: LedgerEntry?
     @State private var editorDate = Date()
+    @State private var showBudgetEditor = false
+    @State private var budgetText = ""
 
     private var allEntries: [LedgerEntry] {
         store.data.workbench.ledger.sorted { $0.epochDay > $1.epochDay }
@@ -30,18 +32,25 @@ struct LedgerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Picker("账单范围", selection: $mode) {
-                    Text("月账单").tag(0)
-                    Text("年账单").tag(1)
-                }
-                .pickerStyle(.segmented)
-                Button("＋ 记一笔") {
+            HStack {
+                Text("记账")
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Spacer()
+                Button {
                     editingEntry = nil
                     editorDate = mode == 0 ? month : Date()
                     showEditor = true
+                } label: {
+                    Label("记一笔", systemImage: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.cream)
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(Theme.ink)
+                        .clipShape(Capsule())
                 }
-                .buttonStyle(SoftButtonStyle())
+                .buttonStyle(.plain)
             }
 
             HStack(spacing: 4) {
@@ -82,6 +91,8 @@ struct LedgerView: View {
             .padding(.top, 10)
 
             summary
+                .padding(.top, 12)
+            statCards
                 .padding(.top, 10)
 
             if entries.isEmpty {
@@ -107,15 +118,16 @@ struct LedgerView: View {
                     yearChart
                         .padding(.top, 18)
                 }
+                if mode == 0 {
+                    flowSection
+                }
                 if !categoryTotals.isEmpty {
                     SectionHeading(title: mode == 0 ? "支出分类" : "全年支出分类")
                         .padding(.top, 22)
                         .padding(.bottom, 9)
                     categoryCard
                 }
-                if mode == 0 {
-                    flowSection
-                } else {
+                if mode == 1 {
                     monthsSection
                 }
             }
@@ -129,30 +141,161 @@ struct LedgerView: View {
     private var summary: some View {
         let expense = entries.filter { !$0.income }.reduce(0) { $0 + $1.amountCents }
         let income = entries.filter { $0.income }.reduce(0) { $0 + $1.amountCents }
-        return Card {
+        let balance = income - expense
+        return VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(mode == 0 ? "\(AppDate.calendar.component(.month, from: month)) 月支出" : "\(year) 年支出")
-                    .font(.system(size: 10, weight: .medium))
-                    .tracking(0.7)
+                Text(mode == 0 ? "本月支出" : "\(year) 年支出")
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Theme.muted)
                 Spacer()
-                Text("\(entries.count) 笔")
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(Theme.faint)
+                Picker("账单范围", selection: $mode) {
+                    Text("月").tag(0)
+                    Text("年").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 104)
             }
-            Text(money(expense))
-                .font(.system(size: 31, weight: .regular, design: .serif))
-                .foregroundStyle(Theme.ink)
-                .padding(.top, 3)
+
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text("¥")
+                    .font(.system(size: 20, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Text(plainMoney(expense))
+                    .font(.system(size: 42, weight: .medium, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+            }
+            .padding(.top, 6)
+
+            Text("每天记一笔，月底自动生成报表")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.muted)
+                .padding(.top, 2)
+
+            Divider().overlay(Theme.line).padding(.vertical, 14)
+
             HStack(spacing: 0) {
-                Text("收入 \(money(income))")
-                    .foregroundStyle(Theme.sage)
-                Text("  ·  结余 \(money(income - expense))")
-                    .foregroundStyle(Theme.muted)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("收入")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.muted)
+                    Text(money(income))
+                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.ink)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Rectangle().fill(Theme.line).frame(width: 0.7, height: 34)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("结余")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.muted)
+                    Text(money(balance))
+                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .foregroundStyle(balance < 0 ? Theme.cinnabar : Theme.sage)
+                }
+                .padding(.leading, 18)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .font(.system(size: 10.5))
-            .padding(.top, 4)
         }
+        .padding(20)
+        .background(Theme.cream)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.95), Theme.line.opacity(0.45)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.8
+                )
+        )
+        .shadow(color: Theme.ink.opacity(0.06), radius: 20, x: 0, y: 8)
+    }
+
+    private var statCards: some View {
+        let expense = monthEntries.filter { !$0.income }.reduce(0) { $0 + $1.amountCents }
+        let budget = store.data.workbench.monthlyBudgetCents
+        let remaining = budget.map { max(0, $0 - expense) }
+        let days = Set(monthEntries.map(\.epochDay)).count
+        let debt = store.data.workbench.debtCents ?? 0
+        return HStack(spacing: 8) {
+            statCard(
+                title: "预算还剩",
+                value: remaining.map(money) ?? "未设置",
+                detail: budget == nil ? "点这里设置" : "日均 \(money(max(0, (remaining ?? 0) / 30)))"
+            ) {
+                budgetText = budget.map { plainMoney($0) } ?? ""
+                showBudgetEditor = true
+            }
+            statCard(
+                title: "本月有账",
+                value: "\(days) 天",
+                detail: "点开看每天"
+            ) {}
+            statCard(
+                title: "本月待还",
+                value: money(debt),
+                detail: "本月待还"
+            ) {}
+        }
+        .alert("设置本月预算", isPresented: $showBudgetEditor) {
+            TextField("例如 10000", text: $budgetText)
+                .keyboardType(.decimalPad)
+            Button("保存") {
+                let normalized = budgetText.replacingOccurrences(of: ",", with: ".")
+                if let value = Double(normalized), value >= 0 {
+                    store.updateWorkbench { data in
+                        data.monthlyBudgetCents = Int((value * 100).rounded())
+                    }
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("预算只保存在本机，用来计算剩余额度。")
+        }
+    }
+
+    private func statCard(
+        title: String,
+        value: String,
+        detail: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(Theme.muted)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 7, weight: .semibold))
+                        .foregroundStyle(Theme.faint)
+                }
+                Text(value)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(detail)
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(Theme.faint)
+                    .lineLimit(1)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.cream.opacity(0.85))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.7), lineWidth: 0.8)
+            )
+            .shadow(color: Theme.ink.opacity(0.04), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
     }
 
     private var categoryTotals: [CategoryTotal] {
@@ -198,34 +341,62 @@ struct LedgerView: View {
         let grouped = Dictionary(grouping: monthEntries, by: \.epochDay)
         let days = grouped.keys.sorted(by: >)
         return VStack(alignment: .leading, spacing: 0) {
-            SectionHeading(title: "流水 · \(monthEntries.count) 笔")
-                .padding(.top, 22)
-                .padding(.bottom, 9)
-            Card(padding: 0) {
+            HStack(alignment: .lastTextBaseline) {
+                Text("本月最近账单")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                Spacer()
+                Text("全部")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+            }
+            .padding(.top, 24)
+
+            Text("显示当前日期全部账单")
+                .font(.system(size: 10))
+                .foregroundStyle(Theme.faint)
+                .padding(.top, 3)
+                .padding(.bottom, 12)
+
+            VStack(spacing: 0) {
                 ForEach(Array(days.enumerated()), id: \.element) { dayIndex, day in
-                    let dayEntries = grouped[day] ?? []
+                    let dayEntries = (grouped[day] ?? []).sorted {
+                        ($0.minuteOfDay ?? 0) > ($1.minuteOfDay ?? 0)
+                    }
                     let dayExpense = dayEntries.filter { !$0.income }.reduce(0) { $0 + $1.amountCents }
                     HStack {
                         Text(AppDate.dayText(day, format: "M月d日 · EEEE"))
-                            .font(.system(size: 9.5))
+                            .font(.system(size: 10.5, weight: .medium))
                             .foregroundStyle(Theme.muted)
                         Spacer()
+                        Text("\(dayEntries.count) 笔")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.faint)
                         if dayExpense > 0 {
-                            Text("支出 \(money(dayExpense))")
-                                .font(.system(size: 8.5))
+                            Text(" · 支出 \(money(dayExpense))")
+                                .font(.system(size: 9))
                                 .foregroundStyle(Theme.faint)
                         }
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.top, 10)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 13)
+                    .padding(.bottom, 3)
+
                     ForEach(dayEntries) { entry in
                         ledgerRow(entry)
                     }
                     if dayIndex < days.count - 1 {
-                        Divider().overlay(Theme.line).padding(.horizontal, 14)
+                        Divider().overlay(Theme.line.opacity(0.7)).padding(.leading, 58)
                     }
                 }
             }
+            .background(Theme.cream)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Theme.line.opacity(0.6), lineWidth: 0.7)
+            )
+            .shadow(color: Theme.ink.opacity(0.04), radius: 14, x: 0, y: 6)
         }
     }
 
@@ -319,32 +490,53 @@ struct LedgerView: View {
             editorDate = AppDate.date(epochDay: entry.epochDay)
             showEditor = true
         } label: {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 11) {
+                Text(timeLabel(entry.minuteOfDay))
+                    .font(.system(size: 10, weight: .regular, design: .monospaced))
+                    .foregroundStyle(Theme.faint)
+                    .frame(width: 34, alignment: .leading)
+                    .padding(.top, 7)
+
                 ZStack {
-                    Circle().fill(option.color.opacity(0.14))
-                    Text(String(entry.category.prefix(1)))
-                        .font(.system(size: 11, design: .serif))
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(option.color.opacity(0.12))
+                    Image(systemName: categorySymbol(entry.category, income: entry.income))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(option.color)
                 }
-                .frame(width: 30, height: 30)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(entry.category)
-                        .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 38, height: 38)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(entry.note.isEmpty ? entry.category : entry.note)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Theme.ink)
-                    if !entry.note.isEmpty {
-                        Text(entry.note)
-                            .font(.system(size: 9.5))
+                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text(entry.category)
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.muted)
+                        Text(entry.account ?? "本机")
+                            .font(.system(size: 8.5))
                             .foregroundStyle(Theme.faint)
-                            .lineLimit(1)
                     }
                 }
-                Spacer()
-                Text((entry.income ? "+" : "-") + money(entry.amountCents))
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(entry.income ? Theme.sage : Theme.cinnabar)
+                .padding(.top, 3)
+
+                Spacer(minLength: 4)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text((entry.income ? "+" : "-") + money(entry.amountCents))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(entry.income ? Theme.sage : Theme.cinnabar)
+                    Text(entry.income ? "收入" : "支出")
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(Theme.faint)
+                }
+                .padding(.top, 4)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -356,6 +548,26 @@ struct LedgerView: View {
             Button("删除", role: .destructive) {
                 store.updateWorkbench { data in data.ledger.removeAll { $0.id == entry.id } }
             }
+        }
+    }
+
+    private func timeLabel(_ minute: Int?) -> String {
+        guard let minute else { return "--:--" }
+        return String(format: "%02d:%02d", minute / 60, minute % 60)
+    }
+
+    private func categorySymbol(_ category: String, income: Bool) -> String {
+        if income { return "tray.and.arrow.down" }
+        switch category {
+        case "餐饮": return "fork.knife"
+        case "交通": return "bus"
+        case "购物": return "bag"
+        case "居住": return "house"
+        case "娱乐": return "gamecontroller"
+        case "医疗": return "cross.case"
+        case "学习": return "book"
+        case "工资": return "banknote"
+        default: return "creditcard"
         }
     }
 
@@ -397,6 +609,7 @@ struct LedgerEditorView: View {
     @State private var category: String
     @State private var date: Date
     @State private var note: String
+    @State private var account: String
     @State private var showInvalid = false
     private let existing: LedgerEntry?
 
@@ -407,6 +620,7 @@ struct LedgerEditorView: View {
         _category = State(initialValue: entry?.category ?? "餐饮")
         _date = State(initialValue: entry.map { AppDate.date(epochDay: $0.epochDay) } ?? initialDate)
         _note = State(initialValue: entry?.note ?? "")
+        _account = State(initialValue: entry?.account ?? "本机")
     }
 
     var body: some View {
@@ -448,6 +662,10 @@ struct LedgerEditorView: View {
                 Section("备注") {
                     TextField("可选，例如：楼下的面和一杯热豆浆", text: $note)
                 }
+
+                Section("账户") {
+                    TextField("例如：微信钱包", text: $account)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.paper)
@@ -469,6 +687,11 @@ struct LedgerEditorView: View {
         }
     }
 
+    private func currentMinuteOfDay() -> Int {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: Date())
+        return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+    }
+
     private func save() {
         let normalized = amount.replacingOccurrences(of: ",", with: ".")
         guard let value = Double(normalized), value > 0, value <= 10_000_000 else {
@@ -482,7 +705,11 @@ struct LedgerEditorView: View {
             income: income,
             amountCents: cents,
             category: LedgerCatalog.normalized(category, income: income),
-            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines),
+            minuteOfDay: existing?.minuteOfDay ?? currentMinuteOfDay(),
+            account: account.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "本机"
+                : account.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         store.updateWorkbench { data in
             data.ledger.removeAll { $0.id == entry.id }

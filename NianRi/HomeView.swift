@@ -88,7 +88,7 @@ struct HomeView: View {
                 .clipShape(Capsule())
                 .shadow(color: Theme.ink.opacity(0.2), radius: 10, y: 4)
                 .padding(.horizontal, 20)
-                .padding(.bottom, 76)
+                .padding(.bottom, 104)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -106,6 +106,14 @@ struct HomeView: View {
                 .background(Theme.cream)
             }
             .padding(.top, 18)
+            .scaleEffect(draggingID == hero.id ? 1.035 : 1)
+            .shadow(
+                color: Theme.ink.opacity(draggingID == hero.id ? 0.18 : 0),
+                radius: draggingID == hero.id ? 24 : 0,
+                x: 0,
+                y: draggingID == hero.id ? 12 : 0
+            )
+            .animation(.spring(response: 0.34, dampingFraction: 0.72), value: draggingID)
             .onDrag {
                 draggingID = hero.id
                 return NSItemProvider(object: hero.id.uuidString as NSString)
@@ -139,6 +147,14 @@ struct HomeView: View {
                                 detailEvent = event
                             }
                     }
+                    .scaleEffect(draggingID == event.id ? 1.03 : 1)
+                    .shadow(
+                        color: Theme.ink.opacity(draggingID == event.id ? 0.16 : 0),
+                        radius: draggingID == event.id ? 18 : 0,
+                        x: 0,
+                        y: draggingID == event.id ? 9 : 0
+                    )
+                    .animation(.spring(response: 0.34, dampingFraction: 0.74), value: draggingID)
                     .onDrag {
                         draggingID = event.id
                         return NSItemProvider(object: event.id.uuidString as NSString)
@@ -151,6 +167,7 @@ struct HomeView: View {
                     ))
                 }
             }
+            .animation(.spring(response: 0.36, dampingFraction: 0.76), value: rest.map(\.id))
         }
     }
 
@@ -736,7 +753,7 @@ private struct AnniversaryDropDelegate: DropDelegate {
               dragged != targetID,
               let from = events.firstIndex(where: { $0.id == dragged }),
               let to = events.firstIndex(where: { $0.id == targetID }) else { return }
-        withAnimation(.easeInOut(duration: 0.16)) {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.76)) {
             events.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
         }
     }

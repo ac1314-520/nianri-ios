@@ -24,33 +24,27 @@ struct RootView: View {
     @State private var recordsTab: RecordsTab = .diary
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView(openWorkbench: { selectedTab = .workbench })
-                .tabItem {
-                    Label("首页", systemImage: "house")
+        ZStack(alignment: .bottom) {
+            Group {
+                switch selectedTab {
+                case .home:
+                    HomeView(openWorkbench: { selectedTab = .workbench })
+                case .workbench:
+                    WorkbenchView(openRecords: { tab in
+                        recordsTab = tab
+                        selectedTab = .records
+                    })
+                case .records:
+                    RecordsView(initialTab: $recordsTab)
+                case .settings:
+                    SettingsView()
                 }
-                .tag(RootTab.home)
-
-            WorkbenchView(openRecords: { tab in
-                recordsTab = tab
-                selectedTab = .records
-            })
-            .tabItem {
-                Label("工作台", systemImage: "rectangle.grid.2x2")
             }
-            .tag(RootTab.workbench)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 84)
+            }
 
-            RecordsView(initialTab: $recordsTab)
-                .tabItem {
-                    Label("记录", systemImage: "book.closed")
-                }
-                .tag(RootTab.records)
-
-            SettingsView()
-                .tabItem {
-                    Label("设置", systemImage: "gearshape")
-                }
-                .tag(RootTab.settings)
+            LiquidTabBar(selection: $selectedTab)
         }
         .task {
             NotificationManager.shared.reschedule(events: store.data.anniversaries)

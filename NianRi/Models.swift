@@ -161,6 +161,8 @@ struct LedgerEntry: Identifiable, Codable, Equatable {
     var amountCents: Int
     var category: String
     var note: String
+    var minuteOfDay: Int? = nil
+    var account: String? = nil
 }
 
 struct PeriodRecord: Identifiable, Codable, Equatable {
@@ -189,6 +191,8 @@ struct WorkbenchData: Codable, Equatable {
     var wishes: [WishItem] = []
     var moods: [String: String] = [:]
     var cycleLength: Int = 28
+    var monthlyBudgetCents: Int? = nil
+    var debtCents: Int? = nil
 
     func mood(on day: Int) -> String? {
         moods[String(day)]
@@ -210,6 +214,8 @@ struct AppData: Codable, Equatable {
     var anniversaries: [Anniversary] = []
     var workbench = WorkbenchData()
     var weatherCity: String = "上海"
+    var weatherLatitude: Double? = nil
+    var weatherLongitude: Double? = nil
 }
 
 final class NianRiStore: ObservableObject {

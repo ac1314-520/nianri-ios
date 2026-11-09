@@ -125,12 +125,33 @@ struct WeatherSnapshot: Codable, Equatable {
     var max: Double
     var min: Double
     var updatedAt: Date
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+}
+
+struct WeatherPlace: Decodable, Identifiable, Equatable {
+    let name: String
+    let admin1: String?
+    let admin2: String?
+    let latitude: Double
+    let longitude: Double
+
+    var id: String { "\(name)|\(admin2 ?? "")|\(latitude)|\(longitude)" }
+
+    var displayName: String {
+        var parts = [name]
+        if let admin2, !admin2.isEmpty, admin2 != name { parts.append(admin2) }
+        if let admin1, !admin1.isEmpty, admin1 != name, admin1 != admin2 { parts.append(admin1) }
+        return parts.joined(separator: " · ")
+    }
 }
 
 final class WeatherStore: ObservableObject {
     @Published var snapshot: WeatherSnapshot?
     @Published var loading = false
     @Published var error: String?
+    @Published var searchResults: [WeatherPlace] = []
+    @Published var searching = false
 
     private let key = "nianri.ios.weather"
 
@@ -147,17 +168,50 @@ final class WeatherStore: ObservableObject {
     }
 
     @MainActor
+    func search(_ query: String) async {
+        let clean = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard clean.count >= 2 else {
+            searchResults = []
+            return
+        }
+        searching = true
+        error = nil
+        defer { searching = false }
+        do {
+            searchResults = try await geocode(clean, count: 10)
+            if searchResults.isEmpty {
+                error = "没有找到这个地点，试试「区名 + 城市」。"
+            }
+        } catch {
+            error = "地点搜索失败，检查网络后再试。"
+        }
+    }
+
+    @MainActor
     func configure(city: String) async {
         let clean = city.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
         loading = true
         error = nil
         do {
-            guard let place = try await geocode(clean) else {
+            let places = try await geocode(clean, count: 10)
+            guard let place = places.first else {
                 error = "没有找到这个城市，换个写法试试。"
                 loading = false
                 return
             }
+            await configure(place: place)
+        } catch {
+            self.error = "天气暂时不可用，检查网络后再试。"
+            loading = false
+        }
+    }
+
+    @MainActor
+    func configure(place: WeatherPlace) async {
+        loading = true
+        error = nil
+        do {
             let forecast = try await forecast(latitude: place.latitude, longitude: place.longitude)
             guard let current = forecast.current,
                   let daily = forecast.daily,
@@ -170,12 +224,14 @@ final class WeatherStore: ObservableObject {
                 return
             }
             let value = WeatherSnapshot(
-                city: place.name,
+                city: place.displayName,
                 temperature: temp,
                 code: code,
                 max: maxValue,
                 min: minValue,
-                updatedAt: Date()
+                updatedAt: Date(),
+                latitude: place.latitude,
+                longitude: place.longitude
             )
             snapshot = value
             if let data = try? JSONEncoder().encode(value) {
@@ -190,22 +246,30 @@ final class WeatherStore: ObservableObject {
 
     @MainActor
     func refresh() async {
-        guard let city = snapshot?.city, !city.isEmpty else { return }
-        await configure(city: city)
+        if let snapshot, let latitude = snapshot.latitude, let longitude = snapshot.longitude {
+            await configure(place: WeatherPlace(
+                name: snapshot.city,
+                admin1: nil,
+                admin2: nil,
+                latitude: latitude,
+                longitude: longitude
+            ))
+        } else if let city = snapshot?.city, !city.isEmpty {
+            await configure(city: city)
+        }
     }
 
-    private func geocode(_ city: String) async throws -> GeoPlace? {
+    private func geocode(_ city: String, count: Int) async throws -> [WeatherPlace] {
         var components = URLComponents(string: "https://geocoding-api.open-meteo.com/v1/search")!
         components.queryItems = [
             URLQueryItem(name: "name", value: city),
-            URLQueryItem(name: "count", value: "1"),
+            URLQueryItem(name: "count", value: String(count)),
             URLQueryItem(name: "language", value: "zh"),
             URLQueryItem(name: "format", value: "json"),
         ]
         let (data, _) = try await URLSession.shared.data(from: components.url!)
         let decoded = try JSONDecoder().decode(GeoResponse.self, from: data)
-        guard let first = decoded.results?.first else { return nil }
-        return first
+        return decoded.results ?? []
     }
 
     private func forecast(latitude: Double, longitude: Double) async throws -> ForecastResponse {
@@ -224,13 +288,7 @@ final class WeatherStore: ObservableObject {
 }
 
 private struct GeoResponse: Decodable {
-    let results: [GeoPlace]?
-}
-
-private struct GeoPlace: Decodable {
-    let name: String
-    let latitude: Double
-    let longitude: Double
+    let results: [WeatherPlace]?
 }
 
 private struct ForecastResponse: Decodable {

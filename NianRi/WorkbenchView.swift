@@ -47,15 +47,30 @@ struct WorkbenchView: View {
         .nianriScreen()
         .task {
             if weather.snapshot == nil {
-                await weather.configure(city: store.data.weatherCity)
+                if let latitude = store.data.weatherLatitude,
+                   let longitude = store.data.weatherLongitude {
+                    await weather.configure(place: WeatherPlace(
+                        name: store.data.weatherCity,
+                        admin1: nil,
+                        admin2: nil,
+                        latitude: latitude,
+                        longitude: longitude
+                    ))
+                } else {
+                    await weather.configure(city: store.data.weatherCity)
+                }
             } else if weather.isStale {
                 await weather.refresh()
             }
         }
         .sheet(isPresented: $showCityEditor) {
-            CityEditorView(city: store.data.weatherCity) { city in
-                store.update { data in data.weatherCity = city }
-                Task { await weather.configure(city: city) }
+            CityEditorView(city: store.data.weatherCity) { place in
+                store.update { data in
+                    data.weatherCity = place.displayName
+                    data.weatherLatitude = place.latitude
+                    data.weatherLongitude = place.longitude
+                }
+                Task { await weather.configure(place: place) }
             }
         }
     }
@@ -98,6 +113,8 @@ struct WorkbenchView: View {
                             Text(snapshot.city)
                                 .font(.system(size: 17, weight: .medium))
                                 .foregroundStyle(Theme.ink)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.75)
                             Text("\(Int(snapshot.temperature.rounded()))°")
                                 .font(.system(size: 27, weight: .light, design: .serif))
                                 .foregroundStyle(Theme.ink)
@@ -384,10 +401,11 @@ struct WorkbenchView: View {
 
 struct CityEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var weather = WeatherStore()
     @State private var city: String
-    var onSave: (String) -> Void
+    var onSave: (WeatherPlace) -> Void
 
-    init(city: String, onSave: @escaping (String) -> Void) {
+    init(city: String, onSave: @escaping (WeatherPlace) -> Void) {
         _city = State(initialValue: city)
         self.onSave = onSave
     }
@@ -395,35 +413,75 @@ struct CityEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("城市") {
-                    TextField("例如：上海", text: $city)
-                        .textInputAutocapitalization(.never)
+                Section("搜索区 / 县 / 城市") {
+                    HStack(spacing: 8) {
+                        TextField("例如：天河区、浦东新区、上海", text: $city)
+                            .textInputAutocapitalization(.never)
+                            .submitLabel(.search)
+                            .onSubmit { search() }
+                        Button("搜索") { search() }
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.cinnabar)
+                    }
+                    if weather.searching {
+                        ProgressView().tint(Theme.cinnabar)
+                    }
+                    if let error = weather.error {
+                        Text(error)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.muted)
+                    }
                 }
+
+                if !weather.searchResults.isEmpty {
+                    Section("选择精确地点") {
+                        ForEach(weather.searchResults) { place in
+                            Button {
+                                onSave(place)
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "mappin.and.ellipse")
+                                        .foregroundStyle(Theme.cinnabar)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(place.displayName)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(Theme.ink)
+                                        Text(String(format: "%.3f, %.3f", place.latitude, place.longitude))
+                                            .font(.system(size: 9.5, design: .monospaced))
+                                            .foregroundStyle(Theme.faint)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(Theme.faint)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
                 Section {
-                    Text("天气使用 Open-Meteo 公开数据，只根据你填写的城市查询，不申请定位权限。")
+                    Text("使用 Open-Meteo 公开数据。先搜索区/县，再选择带经纬度的结果；天气会按所选坐标计算，不再只取城市第一个结果。")
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.muted)
                 }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.paper)
-            .navigationTitle("设置天气城市")
+            .navigationTitle("天气地点")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
-                        let clean = city.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !clean.isEmpty else { return }
-                        onSave(clean)
-                        dismiss()
-                    }
-                    .foregroundStyle(Theme.cinnabar)
-                    .fontWeight(.semibold)
-                }
             }
         }
+    }
+
+    private func search() {
+        Task { await weather.search(city) }
     }
 }
