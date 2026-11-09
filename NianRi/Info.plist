@@ -15,7 +15,7 @@
     <key>CFBundleShortVersionString</key>
     <string>1.2.0</string>
     <key>CFBundleVersion</key>
-    <string>25</string>
+    <string>26</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>UILaunchScreen</key>
@@ -42,5 +42,7 @@
             </array>
         </dict>
     </array>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>用于按当前位置获取更接近手机天气的本地天气。</string>
 </dict>
 </plist>

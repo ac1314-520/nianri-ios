@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 struct WorkbenchView: View {
     @EnvironmentObject private var store: NianRiStore
@@ -405,6 +406,7 @@ struct WorkbenchView: View {
 struct CityEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var weather = WeatherStore()
+    @StateObject private var locator = CurrentLocationProvider()
     @State private var city: String
     var onSave: (WeatherPlace) -> Void
 
@@ -416,6 +418,32 @@ struct CityEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("快速定位") {
+                    Button {
+                        locator.request()
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: "location.fill")
+                                .foregroundStyle(Theme.cinnabar)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(locator.requestInFlight ? "正在获取当前位置…" : "使用当前位置")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(Theme.ink)
+                                Text("用手机定位坐标取天气，通常比区县中心更接近手机天气")
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(Theme.muted)
+                            }
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    if let error = locator.error {
+                        Text(error)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(Theme.cinnabar)
+                    }
+                }
+
                 Section("搜索区 / 县 / 城市") {
                     HStack(spacing: 8) {
                         TextField("例如：天河区、浦东新区、上海", text: $city)
@@ -476,6 +504,27 @@ struct CityEditorView: View {
             .background(Theme.paper)
             .navigationTitle("天气地点")
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: locator.location) { _, location in
+                guard let location else { return }
+                CLGeocoder().reverseGeocodeLocation(location) { places, _ in
+                    let place = places?.first
+                    var parts: [String] = []
+                    for value in [place?.name, place?.locality, place?.administrativeArea] {
+                        if let value, !value.isEmpty, !parts.contains(value) {
+                            parts.append(value)
+                        }
+                    }
+                    let name = parts.isEmpty ? "当前位置" : parts.joined(separator: " · ")
+                    onSave(WeatherPlace(
+                        name: name,
+                        admin1: nil,
+                        admin2: nil,
+                        latitude: location.coordinate.latitude,
+                        longitude: location.coordinate.longitude
+                    ))
+                    dismiss()
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
