@@ -247,13 +247,15 @@ final class NianRiStore: ObservableObject {
         publishWidget()
     }
 
-    private func save() {
+    private func save(refreshWidget: Bool = true) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let encoded = try? encoder.encode(data) else { return }
         try? encoded.write(to: dataURL, options: [.atomic])
-        publishWidget()
+        if refreshWidget {
+            publishWidget()
+        }
     }
 
     private func publishWidget() {
@@ -287,9 +289,9 @@ final class NianRiStore: ObservableObject {
         save()
     }
 
-    func updateWorkbench(_ transform: (inout WorkbenchData) -> Void) {
+    func updateWorkbench(refreshWidget: Bool = true, _ transform: (inout WorkbenchData) -> Void) {
         transform(&data.workbench)
-        save()
+        save(refreshWidget: refreshWidget)
     }
 
     func addAnniversary(_ event: Anniversary) {

@@ -81,6 +81,7 @@ struct CheckInView: View {
     @EnvironmentObject private var store: NianRiStore
     @State private var showEditor = false
     @State private var editingPlan: CheckInPlan?
+    @State private var newPlanCategory: CheckInCategory = .daily
 
     private var today: Int { AppDate.today }
     private var plans: [CheckInPlan] {
@@ -131,9 +132,9 @@ struct CheckInView: View {
                 HStack(spacing: 5) {
                     ForEach(CheckInCategory.allCases) { category in
                         Button("＋ \(category.label)") {
+                            newPlanCategory = category
                             editingPlan = nil
                             showEditor = true
-                            newPlanCategory = category
                         }
                         .buttonStyle(SoftButtonStyle())
                     }
@@ -161,24 +162,27 @@ struct CheckInView: View {
         }
     }
 
-    @State private var newPlanCategory: CheckInCategory = .daily
-
     private func planRow(_ plan: CheckInPlan) -> some View {
         let checkedToday = plan.checkedDays.contains(today)
         return HStack(spacing: 10) {
             Button {
-                store.updateWorkbench { data in
-                    guard let index = data.plans.firstIndex(where: { $0.id == plan.id }) else { return }
-                    if data.plans[index].checkedDays.contains(today) {
-                        data.plans[index].checkedDays.removeAll { $0 == today }
-                    } else {
-                        data.plans[index].checkedDays.append(today)
+                withAnimation(.snappy(duration: 0.18)) {
+                    store.updateWorkbench(refreshWidget: false) { data in
+                        guard let index = data.plans.firstIndex(where: { $0.id == plan.id }) else { return }
+                        if data.plans[index].checkedDays.contains(today) {
+                            data.plans[index].checkedDays.removeAll { $0 == today }
+                        } else {
+                            data.plans[index].checkedDays.append(today)
+                        }
                     }
                 }
             } label: {
                 CircleCheck(checked: checkedToday, color: color(for: plan.category), size: 27)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(checkedToday ? "取消打卡 \(plan.title)" : "打卡 \(plan.title)")
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(plan.title)
@@ -206,7 +210,9 @@ struct CheckInView: View {
                     showEditor = true
                 }
                 Button("删除打卡", role: .destructive) {
-                    store.updateWorkbench { data in data.plans.removeAll { $0.id == plan.id } }
+                    store.updateWorkbench(refreshWidget: false) { data in
+                        data.plans.removeAll { $0.id == plan.id }
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -271,7 +277,7 @@ struct CheckInEditorView: View {
                         let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !clean.isEmpty else { return }
                         if let plan, let index = store.data.workbench.plans.firstIndex(where: { $0.id == plan.id }) {
-                            store.updateWorkbench { data in
+                            store.updateWorkbench(refreshWidget: false) { data in
                                 data.plans[index].title = clean
                                 data.plans[index].category = category
                             }
@@ -282,7 +288,9 @@ struct CheckInEditorView: View {
                                 createdDay: AppDate.today,
                                 checkedDays: []
                             )
-                            store.updateWorkbench { data in data.plans.append(newPlan) }
+                            store.updateWorkbench(refreshWidget: false) { data in
+                                data.plans.append(newPlan)
+                            }
                         }
                         dismiss()
                     }
