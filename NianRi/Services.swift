@@ -189,7 +189,7 @@ final class WeatherStore: ObservableObject {
             )
             let response = try await MKLocalSearch(request: request).start()
             var seen = Set<String>()
-            let places: [WeatherPlace] = response.mapItems.compactMap { item in
+            let places: [WeatherPlace] = response.mapItems.compactMap { item -> WeatherPlace? in
                 let mark = item.placemark
                 if let country = mark.countryCode, !country.isEmpty, country != "CN" {
                     return nil
