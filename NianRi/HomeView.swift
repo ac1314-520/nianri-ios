@@ -473,8 +473,7 @@ struct AnniversaryEditorView: View {
     @State private var lunarDate: LunarDate?
     @State private var showLunarPicker = false
     @State private var photoAsset: PHAsset?
-    @State private var cropImage: UIImage?
-    @State private var showPhotoCrop = false
+    @State private var cropRequest: CropRequest?
     @State private var coverFocusX: Double?
     @State private var coverFocusY: Double?
     @State private var showValidation = false
@@ -633,19 +632,17 @@ struct AnniversaryEditorView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showPhotoCrop) {
-                if let cropImage {
-                    PhotoCropSheet(
-                        image: cropImage,
-                        focusX: effectiveFocusX,
-                        focusY: effectiveFocusY
-                    ) { x, y in
-                        coverFocusX = Double(x)
-                        coverFocusY = Double(y)
-                        draft.photoFocusX = Double(x)
-                        draft.photoFocusY = Double(y)
-                        showPhotoCrop = false
-                    }
+            .sheet(item: $cropRequest) { request in
+                PhotoCropSheet(
+                    image: request.image,
+                    focusX: request.focusX,
+                    focusY: request.focusY
+                ) { x, y in
+                    coverFocusX = Double(x)
+                    coverFocusY = Double(y)
+                    draft.photoFocusX = Double(x)
+                    draft.photoFocusY = Double(y)
+                    cropRequest = nil
                 }
             }
             .toolbar {
@@ -670,8 +667,11 @@ struct AnniversaryEditorView: View {
                         draft.photoFocusX = nil
                         draft.photoFocusY = nil
                         if !item.nianriNeedsOriginalAsset, let image = UIImage(data: data) {
-                            cropImage = image
-                            showPhotoCrop = true
+                            cropRequest = CropRequest(
+                                image: image,
+                                focusX: effectiveFocusX,
+                                focusY: effectiveFocusY
+                            )
                         }
                     }
                     guard item.nianriNeedsOriginalAsset else { return }
@@ -701,6 +701,13 @@ struct AnniversaryEditorView: View {
                 Text("「\(draft.title)」的照片和记录会一起删除。")
             }
         }
+    }
+
+    private struct CropRequest: Identifiable {
+        let id = UUID()
+        let image: UIImage
+        let focusX: CGFloat
+        let focusY: CGFloat
     }
 
     @ViewBuilder
@@ -739,8 +746,11 @@ struct AnniversaryEditorView: View {
 
                     if let image = cropSourceImage {
                         Button {
-                            cropImage = image
-                            showPhotoCrop = true
+                            cropRequest = CropRequest(
+                                image: image,
+                                focusX: effectiveFocusX,
+                                focusY: effectiveFocusY
+                            )
                         } label: {
                             HStack(spacing: 7) {
                                 Image(systemName: "crop")
