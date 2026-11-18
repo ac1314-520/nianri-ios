@@ -15,6 +15,7 @@ struct PhotoCropSheet: View {
     @State private var zoomStart: CGFloat = 1
     @State private var isZooming = false
     @State private var canvasSize: CGSize = .zero
+    @State private var pickedFocus: CGPoint?
 
     init(
         image: UIImage,
@@ -62,13 +63,15 @@ struct PhotoCropSheet: View {
                                     dragStart = metrics.offset
                                     isDragging = true
                                 }
-                                offset = clamp(
+                                let next = clamp(
                                     CGSize(
                                         width: dragStart.width + value.translation.width,
                                         height: dragStart.height + value.translation.height
                                     ),
                                     for: size
                                 )
+                                offset = next
+                                pickedFocus = focusValue(for: size, offset: next, zoom: zoom)
                             }
                             .onEnded { _ in isDragging = false }
                     )
@@ -79,11 +82,22 @@ struct PhotoCropSheet: View {
                                     zoomStart = zoom
                                     isZooming = true
                                 }
-                                zoom = min(max(zoomStart * value, 1), 3)
+                                let nextZoom = min(max(zoomStart * value, 1), 3)
+                                zoom = nextZoom
+                                pickedFocus = focusValue(
+                                    for: size,
+                                    offset: offset ?? initialOffset(for: size, zoom: nextZoom),
+                                    zoom: nextZoom
+                                )
                             }
                             .onEnded { _ in isZooming = false }
                     )
-                    .onAppear { canvasSize = size }
+                    .onAppear {
+                        canvasSize = size
+                        if pickedFocus == nil {
+                            pickedFocus = CGPoint(x: initialFocusX, y: initialFocusY)
+                        }
+                    }
                     .onChange(of: size) { _, newSize in canvasSize = newSize }
                 }
                 .aspectRatio(4 / 3, contentMode: .fit)
@@ -104,10 +118,11 @@ struct PhotoCropSheet: View {
                     Button("居中") {
                         offset = nil
                         zoom = 1
+                        pickedFocus = CGPoint(x: 0.5, y: 0.5)
                     }
                     .foregroundStyle(Theme.cream.opacity(0.8))
                     Button("使用这个位置") {
-                        let focus = focus(for: effectiveCanvasSize)
+                        let focus = pickedFocus ?? focus(for: effectiveCanvasSize)
                         onConfirm(focus.x, focus.y)
                         dismiss()
                     }
@@ -143,16 +158,16 @@ struct PhotoCropSheet: View {
         let offset: CGSize
     }
 
-    private func baseDrawSize(for size: CGSize) -> CGSize {
+    private func baseDrawSize(for size: CGSize, zoom: CGFloat? = nil) -> CGSize {
         let scale = max(
             size.width / max(image.size.width, 1),
             size.height / max(image.size.height, 1)
-        ) * zoom
+        ) * (zoom ?? self.zoom)
         return CGSize(width: image.size.width * scale, height: image.size.height * scale)
     }
 
-    private func initialOffset(for size: CGSize) -> CGSize {
-        let draw = baseDrawSize(for: size)
+    private func initialOffset(for size: CGSize, zoom: CGFloat? = nil) -> CGSize {
+        let draw = baseDrawSize(for: size, zoom: zoom)
         return CGSize(
             width: (size.width - draw.width) * (initialFocusX - 0.5),
             height: (size.height - draw.height) * (initialFocusY - 0.5)
@@ -181,6 +196,23 @@ struct PhotoCropSheet: View {
         return CGSize(
             width: min(max(value.width, -maxX), maxX),
             height: min(max(value.height, -maxY), maxY)
+        )
+    }
+
+    private func focusValue(for size: CGSize, offset: CGSize, zoom: CGFloat) -> CGPoint {
+        let scale = max(
+            size.width / max(image.size.width, 1),
+            size.height / max(image.size.height, 1)
+        ) * zoom
+        let drawW = image.size.width * scale
+        let drawH = image.size.height * scale
+        let maxX = max(0, (drawW - size.width) / 2)
+        let maxY = max(0, (drawH - size.height) / 2)
+        let x = min(max(offset.width, -maxX), maxX)
+        let y = min(max(offset.height, -maxY), maxY)
+        return CGPoint(
+            x: (0.5 - x / max(drawW, 1)).cropClampedUnit(),
+            y: (0.5 - y / max(drawH, 1)).cropClampedUnit()
         )
     }
 
