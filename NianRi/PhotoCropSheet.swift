@@ -189,5 +189,5 @@ struct PhotoCropSheet: View {
 }
 
 private extension CGFloat {
-    func cropClampedUnit() -> CGFloat { min(max(self, 0), 1) }
+    func cropClampedUnit() -> CGFloat { Swift.min(Swift.max(self, 0), 1) }
 }

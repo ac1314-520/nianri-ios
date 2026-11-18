@@ -223,7 +223,7 @@ extension Anniversary {
 }
 
 private extension CGFloat {
-    func clampedUnit() -> CGFloat { min(max(self, 0), 1) }
+    func clampedUnit() -> CGFloat { Swift.min(Swift.max(self, 0), 1) }
 }
 
 struct PhotoView: View {
