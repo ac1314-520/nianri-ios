@@ -200,18 +200,22 @@ struct FocusedImage: View {
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let scale = max(size.width / max(image.size.width, 1),
-                            size.height / max(image.size.height, 1))
+            let scale = max(
+                size.width / max(image.size.width, 1),
+                size.height / max(image.size.height, 1)
+            )
             let drawW = image.size.width * scale
             let drawH = image.size.height * scale
-            Image(uiImage: image)
-                .resizable()
-                .frame(width: drawW, height: drawH)
-                .offset(
-                    x: (size.width - drawW) * (focusX.clampedUnit() - 0.5),
-                    y: (size.height - drawH) * (focusY.clampedUnit() - 0.5)
-                )
-                .frame(width: size.width, height: size.height)
+            let left = (size.width - drawW) * focusX.clampedUnit()
+            let top = (size.height - drawH) * focusY.clampedUnit()
+            ZStack(alignment: .topLeading) {
+                Image(uiImage: image)
+                    .resizable()
+                    .frame(width: drawW, height: drawH)
+                    .offset(x: left, y: top)
+            }
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .clipped()
         }
         .clipped()
     }

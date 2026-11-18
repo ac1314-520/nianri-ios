@@ -475,6 +475,8 @@ struct AnniversaryEditorView: View {
     @State private var photoAsset: PHAsset?
     @State private var cropImage: UIImage?
     @State private var showPhotoCrop = false
+    @State private var coverFocusX: Double?
+    @State private var coverFocusY: Double?
     @State private var showValidation = false
     @State private var showDelete = false
     private let isNew: Bool
@@ -492,6 +494,8 @@ struct AnniversaryEditorView: View {
         _musicTitle = State(initialValue: seeded.musicTitle)
         _lunarMode = State(initialValue: seeded.lunar == true)
         _lunarDate = State(initialValue: seeded.lunarDate)
+        _coverFocusX = State(initialValue: seeded.photoFocusX)
+        _coverFocusY = State(initialValue: seeded.photoFocusY)
         isNew = event == nil
         originalPhoto = event?.photo
     }
@@ -633,9 +637,11 @@ struct AnniversaryEditorView: View {
                 if let cropImage {
                     PhotoCropSheet(
                         image: cropImage,
-                        focusX: draft.coverFocusX,
-                        focusY: draft.coverFocusY
+                        focusX: effectiveFocusX,
+                        focusY: effectiveFocusY
                     ) { x, y in
+                        coverFocusX = Double(x)
+                        coverFocusY = Double(y)
                         draft.photoFocusX = Double(x)
                         draft.photoFocusY = Double(y)
                         showPhotoCrop = false
@@ -659,6 +665,8 @@ struct AnniversaryEditorView: View {
                 Task {
                     if let data = try? await item.loadTransferable(type: Data.self) {
                         newPhotoData = data
+                        coverFocusX = nil
+                        coverFocusY = nil
                         draft.photoFocusX = nil
                         draft.photoFocusY = nil
                         if !item.nianriNeedsOriginalAsset, let image = UIImage(data: data) {
@@ -706,8 +714,8 @@ struct AnniversaryEditorView: View {
                             if let data = newPhotoData, let image = UIImage(data: data) {
                                 FocusedImage(
                                     image: image,
-                                    focusX: draft.coverFocusX,
-                                    focusY: draft.coverFocusY
+                                    focusX: effectiveFocusX,
+                                    focusY: effectiveFocusY
                                 )
                                 .frame(width: 74, height: 74)
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -715,8 +723,8 @@ struct AnniversaryEditorView: View {
                                 PhotoView(
                                     filename: draft.photo,
                                     cornerRadius: 14,
-                                    focusX: draft.coverFocusX,
-                                    focusY: draft.coverFocusY
+                                    focusX: effectiveFocusX,
+                                    focusY: effectiveFocusY
                                 )
                                 .frame(width: 74, height: 74)
                             }
@@ -744,6 +752,14 @@ struct AnniversaryEditorView: View {
                         }
                     }
                 }
+    }
+
+    private var effectiveFocusX: CGFloat {
+        CGFloat(coverFocusX ?? draft.photoFocusX ?? 0.5)
+    }
+
+    private var effectiveFocusY: CGFloat {
+        CGFloat(coverFocusY ?? draft.photoFocusY ?? 0.5)
     }
 
     private var cropSourceImage: UIImage? {
@@ -775,6 +791,8 @@ struct AnniversaryEditorView: View {
         if let old = draft.music, old != musicName {
             store.deleteAudio(old)
         }
+        if let coverFocusX { draft.photoFocusX = coverFocusX }
+        if let coverFocusY { draft.photoFocusY = coverFocusY }
         draft.music = musicName
         draft.musicTitle = musicTitle
         if lunarMode, let lunarDate {

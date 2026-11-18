@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct PhotoCropSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -106,7 +107,7 @@ struct PhotoCropSheet: View {
                     }
                     .foregroundStyle(Theme.cream.opacity(0.8))
                     Button("使用这个位置") {
-                        let focus = focus(for: canvasSize)
+                        let focus = focus(for: effectiveCanvasSize)
                         onConfirm(focus.x, focus.y)
                         dismiss()
                     }
@@ -128,6 +129,12 @@ struct PhotoCropSheet: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Theme.ink, for: .navigationBar)
         }
+    }
+
+    private var effectiveCanvasSize: CGSize {
+        if canvasSize.width > 1, canvasSize.height > 1 { return canvasSize }
+        let width = max(UIScreen.main.bounds.width - 36, 120)
+        return CGSize(width: width, height: width * 3 / 4)
     }
 
     private struct Metrics {
