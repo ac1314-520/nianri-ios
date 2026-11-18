@@ -87,7 +87,12 @@ struct AnniversaryDetailView: View {
 
     private func cover(_ event: Anniversary) -> some View {
         ZStack {
-            PhotoView(filename: event.photo, cornerRadius: 30)
+            PhotoView(
+                filename: event.photo,
+                cornerRadius: 30,
+                focusX: event.coverFocusX,
+                focusY: event.coverFocusY
+            )
                 .frame(height: 330)
 
             LinearGradient(

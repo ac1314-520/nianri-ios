@@ -29,6 +29,8 @@ struct Anniversary: Identifiable, Codable, Equatable {
     var accentIndex: Int = 0
     var note: String = ""
     var photo: String? = nil
+    var photoFocusX: Double? = nil
+    var photoFocusY: Double? = nil
     var music: String? = nil
     var musicTitle: String? = nil
     var lunar: Bool? = nil

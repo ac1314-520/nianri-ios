@@ -192,11 +192,47 @@ struct CircleCheck: View {
     }
 }
 
+struct FocusedImage: View {
+    let image: UIImage
+    var focusX: CGFloat = 0.5
+    var focusY: CGFloat = 0.5
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let scale = max(size.width / max(image.size.width, 1),
+                            size.height / max(image.size.height, 1))
+            let drawW = image.size.width * scale
+            let drawH = image.size.height * scale
+            Image(uiImage: image)
+                .resizable()
+                .frame(width: drawW, height: drawH)
+                .offset(
+                    x: (size.width - drawW) * (focusX.clampedUnit() - 0.5),
+                    y: (size.height - drawH) * (focusY.clampedUnit() - 0.5)
+                )
+                .frame(width: size.width, height: size.height)
+        }
+        .clipped()
+    }
+}
+
+extension Anniversary {
+    var coverFocusX: CGFloat { CGFloat(photoFocusX ?? 0.5) }
+    var coverFocusY: CGFloat { CGFloat(photoFocusY ?? 0.5) }
+}
+
+private extension CGFloat {
+    func clampedUnit() -> CGFloat { min(max(self, 0), 1) }
+}
+
 struct PhotoView: View {
     @EnvironmentObject private var store: NianRiStore
     let filename: String?
     var cornerRadius: CGFloat = 22
     var fitWide = true
+    var focusX: CGFloat = 0.5
+    var focusY: CGFloat = 0.5
 
     var body: some View {
         GeometryReader { proxy in
@@ -219,10 +255,12 @@ struct PhotoView: View {
                             .frame(width: proxy.size.width, height: proxy.size.height)
                     }
                 } else {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: proxy.size.width, height: proxy.size.height)
+                    FocusedImage(
+                        image: image,
+                        focusX: focusX,
+                        focusY: focusY
+                    )
+                    .frame(width: proxy.size.width, height: proxy.size.height)
                 }
             } else {
                 ZStack {

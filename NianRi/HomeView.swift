@@ -326,7 +326,12 @@ struct AnniversaryHero: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            PhotoView(filename: event.photo, cornerRadius: 30)
+            PhotoView(
+                filename: event.photo,
+                cornerRadius: 30,
+                focusX: event.coverFocusX,
+                focusY: event.coverFocusY
+            )
                 .frame(height: 370)
             LinearGradient(
                 colors: [Color.clear, Theme.ink.opacity(0.18), Theme.ink.opacity(0.8)],
@@ -400,7 +405,13 @@ struct EventRow: View {
         HStack(spacing: 12) {
             ZStack {
                 if event.photo != nil {
-                    PhotoView(filename: event.photo, cornerRadius: 12, fitWide: false)
+                    PhotoView(
+                        filename: event.photo,
+                        cornerRadius: 12,
+                        fitWide: false,
+                        focusX: event.coverFocusX,
+                        focusY: event.coverFocusY
+                    )
                 } else {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Theme.accent(event.accentIndex).opacity(0.18))
@@ -462,6 +473,8 @@ struct AnniversaryEditorView: View {
     @State private var lunarDate: LunarDate?
     @State private var showLunarPicker = false
     @State private var photoAsset: PHAsset?
+    @State private var cropImage: UIImage?
+    @State private var showPhotoCrop = false
     @State private var showValidation = false
     @State private var showDelete = false
     private let isNew: Bool
@@ -616,6 +629,19 @@ struct AnniversaryEditorView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showPhotoCrop) {
+                if let cropImage {
+                    PhotoCropSheet(
+                        image: cropImage,
+                        focusX: draft.coverFocusX,
+                        focusY: draft.coverFocusY
+                    ) { x, y in
+                        draft.photoFocusX = Double(x)
+                        draft.photoFocusY = Double(y)
+                        showPhotoCrop = false
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -633,6 +659,12 @@ struct AnniversaryEditorView: View {
                 Task {
                     if let data = try? await item.loadTransferable(type: Data.self) {
                         newPhotoData = data
+                        draft.photoFocusX = nil
+                        draft.photoFocusY = nil
+                        if !item.nianriNeedsOriginalAsset, let image = UIImage(data: data) {
+                            cropImage = image
+                            showPhotoCrop = true
+                        }
                     }
                     guard item.nianriNeedsOriginalAsset else { return }
                     _ = await store.requestPhotoLibraryAccess()
@@ -672,14 +704,21 @@ struct AnniversaryEditorView: View {
                     ) {
                         HStack(spacing: 14) {
                             if let data = newPhotoData, let image = UIImage(data: data) {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 74, height: 74)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                FocusedImage(
+                                    image: image,
+                                    focusX: draft.coverFocusX,
+                                    focusY: draft.coverFocusY
+                                )
+                                .frame(width: 74, height: 74)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             } else {
-                                PhotoView(filename: draft.photo, cornerRadius: 14)
-                                    .frame(width: 74, height: 74)
+                                PhotoView(
+                                    filename: draft.photo,
+                                    cornerRadius: 14,
+                                    focusX: draft.coverFocusX,
+                                    focusY: draft.coverFocusY
+                                )
+                                .frame(width: 74, height: 74)
                             }
                             Text(draft.photo == nil && newPhotoData == nil ? "从相册选择" : "换一张")
                                 .font(.system(size: 13, weight: .medium))
@@ -689,7 +728,32 @@ struct AnniversaryEditorView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+
+                    if let image = cropSourceImage {
+                        Button {
+                            cropImage = image
+                            showPhotoCrop = true
+                        } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: "crop")
+                                Text("调整封面位置")
+                                Spacer()
+                            }
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundStyle(Theme.cinnabar)
+                        }
+                    }
                 }
+    }
+
+    private var cropSourceImage: UIImage? {
+        if let data = newPhotoData, let image = UIImage(data: data) {
+            return image
+        }
+        if let name = draft.photo {
+            return store.image(name)
+        }
+        return nil
     }
 
     private func save() {
